@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard Akuntansi & Biaya Pertambangan Batubara</title>
+    <link rel="stylesheet" href="http://127.0.0.1:8001/css/dashboard.css">
+<script id="browser-logger-active">
+(function() {
+    const ENDPOINT = 'http://127.0.0.1:8001/_boost/browser-logs';
+    const logQueue = [];
+    let flushTimeout = null;
+    const captureTypes = ["error","warning","info","log","debug","table"];
+
+    console.log('🔍 Browser logger active (MCP server detected). Posting to: ' + ENDPOINT);
+
+    // Store original console methods
+    const originalConsole = {
+        log: console.log,
+        debug: console.debug,
+        info: console.info,
+        error: console.error,
+        warn: console.warn,
+        table: console.table
+    };
+
+    // Walk own enumerable keys so JSON.stringify cannot auto-invoke a proxy fake toJSON (e.g. Livewire's `$wire`) and fire a real request.
+    function toSafeValue(value, seen) {
+        if (value === null || typeof value !== 'object') {
+            return value;
+        }
+        if (value instanceof Error) {
+            return { name: value.name, message: value.message, stack: value.stack };
+        }
+        // Date has no own enumerable keys, so the walk below would collapse it to {}.
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+        if (seen.has(value)) {
+            return '[Circular]';
+        }
+        seen.add(value);
+        if (Array.isArray(value)) {
+            return value.map((item) => toSafeValue(item, seen));
+        }
+        const plain = {};
+        for (const key of Object.keys(value)) {
+            if (key === 'toJSON') continue;
+            try {
+                plain[key] = toSafeValue(value[key], seen);
+            } catch (e) {
+                plain[key] = '[Unreadable]';
+            }
+        }
+        return plain;
+    }
+
+    // Helper to safely stringify values
+    function safeStringify(obj) {
+        return JSON.stringify(toSafeValue(obj, new WeakSet()));
+    }
+
+    // Normalize log type for consistency (e.g., 'warn' to 'warning')
+    function normalizeType(type) {
+        return type === 'warn' ? 'warning' : type;
+    }
+
+    // Determine if a log type should be captured based on configured levels
+    function shouldCapture(type) {
+        return captureTypes.includes(normalizeType(type));
+    }
+
+    // Batch and send logs
+    function flushLogs() {
+        if (logQueue.length === 0) return;
+
+        const batch = logQueue.splice(0, logQueue.length);
+
+        fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ logs: batch })
+        }).catch(err => {
+            // Silently fail to avoid infinite loops
+            originalConsole.error('Failed to send logs:', err);
+        });
+    }
+
+    // Debounced flush (100ms)
+    function scheduleFlush() {
+        if (flushTimeout) clearTimeout(flushTimeout);
+        flushTimeout = setTimeout(flushLogs, 100);
+    }
+
+    // Intercept console methods
+    ['log', 'debug', 'info', 'error', 'warn', 'table'].forEach(method => {
+        console[method] = function(...args) {
+            // Call original method
+            originalConsole[method].apply(console, args);
+
+            // Capture log data
+            try {
+                if (!shouldCapture(method)) {
+                    return;
+                }
+
+                logQueue.push({
+                    type: method,
+                    timestamp: new Date().toISOString(),
+                    data: args.map(arg => {
+                        try {
+                            return typeof arg === 'object' ? JSON.parse(safeStringify(arg)) : arg;
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }),
+                    url: window.location.href,
+                    userAgent: navigator.userAgent
+                });
+
+                scheduleFlush();
+            } catch (e) {
+                // Fail silently
+            }
+        };
+    });
+
+    // Global error handlers for uncaught errors
+    const originalOnError = window.onerror;
+    window.onerror = function boostErrorHandler(errorMsg, url, lineNumber, colNumber, error) {
+        try {
+            if (shouldCapture('error')) {
+                logQueue.push({
+                    type: 'uncaught_error',
+                    timestamp: new Date().toISOString(),
+                    data: [{
+                        message: errorMsg,
+                        filename: url,
+                        lineno: lineNumber,
+                        colno: colNumber,
+                        error: error ? {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        } : null
+                    }],
+                    url: window.location.href,
+                    userAgent: navigator.userAgent
+                });
+
+                scheduleFlush();
+            }
+
+        } catch (e) {
+            // Fail silently
+        }
+
+        // Call original handler if it exists
+        if (originalOnError && typeof originalOnError === 'function') {
+            return originalOnError(errorMsg, url, lineNumber, colNumber, error);
+        }
+
+        // Let the error continue to propagate
+        return false;
+    }
+    window.addEventListener('error', (event) => {
+        try {
+            if (!shouldCapture('error')) {
+                return false;
+            }
+
+            logQueue.push({
+                type: 'window_error',
+                timestamp: new Date().toISOString(),
+                data: [{
+                    message: event.message,
+                    filename: event.filename,
+                    lineno: event.lineno,
+                    colno: event.colno,
+                    error: event.error ? {
+                        name: event.error.name,
+                        message: event.error.message,
+                        stack: event.error.stack
+                    } : null
+                }],
+                url: window.location.href,
+                userAgent: navigator.userAgent
+            });
+
+            scheduleFlush();
+        } catch (e) {
+            // Fail silently
+        }
+
+        // Let the error continue to propagate
+        return false;
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+        try {
+            if (!shouldCapture('error')) {
+                return false;
+            }
+
+            logQueue.push({
+                type: 'error',
+                timestamp: new Date().toISOString(),
+                data: [{
+                    message: 'Unhandled Promise Rejection',
+                    reason: toSafeValue(event.reason, new WeakSet())
+                }],
+                url: window.location.href,
+                userAgent: navigator.userAgent
+            });
+
+            scheduleFlush();
+        } catch (e) {
+            // Fail silently
+        }
+
+        // Let the rejection continue to propagate
+        return false;
+    });
+
+    // Flush on page unload
+    window.addEventListener('beforeunload', () => {
+        if (logQueue.length > 0) {
+            navigator.sendBeacon(ENDPOINT, JSON.stringify({ logs: logQueue }));
+        }
+    });
+})();
+</script>
+</head>
+<body>
+<header class="app-header">
+    <div class="brand"><div class="brand-icon">⛏</div><div class="brand-info"><h1>PT Coal Mining &amp; Resources</h1><p>Accounting & Mining Cost Management System • Local Hosting (Intranet)</p></div></div>
+    <div class="header-status"><a class="btn btn-primary" href="http://127.0.0.1:8001?tab=integration#import-gl">📤 Impor Data GL</a><span class="sync-badge">D365 GL: Konfigurasi</span><span class="sync-badge">Timbangan: Data Lokal</span><strong>Periode: Oktober 2026</strong></div>
+</header>
+<nav class="nav-tabs-bar" aria-label="Menu dashboard">
+            <a class="nav-tab-btn " href="http://127.0.0.1:8001?tab=overview">📊 Ringkasan Eksekutif</a>
+            <a class="nav-tab-btn active" href="http://127.0.0.1:8001?tab=matrix">📑 Report Cost (Valuation &amp; Costing)</a>
+            <a class="nav-tab-btn " href="http://127.0.0.1:8001?tab=cost">⚖️ Cost per Metric Ton</a>
+            <a class="nav-tab-btn " href="http://127.0.0.1:8001?tab=inventory">📦 Valuasi Persediaan (Moving Avg)</a>
+            <a class="nav-tab-btn " href="http://127.0.0.1:8001?tab=financial">📑 Laporan Keuangan (FS)</a>
+            <a class="nav-tab-btn " href="http://127.0.0.1:8001?tab=integration">🔄 Integrasi &amp; Sumber Data</a>
+    </nav>
+<main class="main-content">
+        
+    <section class="tab-pane ">
+        <div class="section-header"><div class="section-title"><h2>Ringkasan Operasional & Keuangan</h2><p>Kombinasi data General Ledger dan penimbangan produksi</p></div></div>
+        <div class="kpi-grid">
+                            <div class="kpi-card "><div class="kpi-title">TOTAL ALL COST (GL)</div><div class="kpi-value">Rp 2.462.123</div><div class="kpi-sub">Valuation to + Costing to (Ribuan IDR)</div></div>
+                            <div class="kpi-card val"><div class="kpi-title">TOTAL PRODUKSI NETTO</div><div class="kpi-value">3.805,80 MT</div><div class="kpi-sub">NETTO / 1000</div></div>
+                            <div class="kpi-card cost"><div class="kpi-title">RATA-RATA COST / MT</div><div class="kpi-value">Rp 646.940 / MT</div><div class="kpi-sub">Total Biaya Operasional / Netto MT</div></div>
+                            <div class="kpi-card success"><div class="kpi-title">TOTAL NILAI PERSEDIAAN</div><div class="kpi-value">Rp 50.242.421</div><div class="kpi-sub">4 Stockpile (Ribuan IDR)</div></div>
+                            <div class="kpi-card "><div class="kpi-title">LABA KOTOR (GROSS PROFIT)</div><div class="kpi-value">Rp 273.003</div><div class="kpi-sub">Ribuan IDR</div></div>
+                            <div class="kpi-card "><div class="kpi-title">EBITDA OPERASIONAL</div><div class="kpi-value">Rp 220.454</div><div class="kpi-sub">Ribuan IDR</div></div>
+                    </div>
+        <div class="grid-2">
+            <div class="card"><div class="card-title">Alokasi Biaya GL (Valuation vs Costing)</div>
+                <div class="allocation-grid"><div class="allocation-card allocation-val"><strong>VALUATION TO (KAPITALISASI STOK)</strong><h2>Rp 1.155.799</h2><small>Mining, Hauling, Wash Plant, BP Port</small></div><div class="allocation-card allocation-cost"><strong>COSTING TO (BEBAN PERIODE)</strong><h2>Rp 1.306.324</h2><small>Mining, Hauling, Wash Plant, Port, GA, Selling</small></div></div>
+                <strong>Top Cost Drivers (Komponen Biaya Terbesar)</strong>
+                                    <div class="driver-row"><span>Fuel &amp; Energy</span><strong>Rp 1.221.001</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 49.591389219791%"></div></div>
+                                    <div class="driver-row"><span>Salary &amp; Employee Benefits</span><strong>Rp 1.002.373</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 40.711735360094%"></div></div>
+                                    <div class="driver-row"><span>Equipment &amp; Vehicle Rent</span><strong>Rp 156.263</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 6.3466772374898%"></div></div>
+                                    <div class="driver-row"><span>Labour Outsourcing &amp; Overheads</span><strong>Rp 76.144</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 3.0926156004391%"></div></div>
+                                    <div class="driver-row"><span>Repair &amp; Maintenance</span><strong>Rp -</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 2%"></div></div>
+                                    <div class="driver-row"><span>Freight &amp; Handling</span><strong>Rp -</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 2%"></div></div>
+                                    <div class="driver-row"><span>Consultant &amp; Professional Fee</span><strong>Rp 25.508</strong></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: 2%"></div></div>
+                            </div>
+            <div class="card"><div class="card-title">Tren Penimbangan Harian Netto MT</div><p>Volume batubara keluar timbangan per hari (MT):</p>
+                                <div class="chart-bars">                    <div class="chart-column" title="2026-10-01: 121,80 MT"><div style="height: 73.907766990291%"></div><small>01</small></div>
+                                    <div class="chart-column" title="2026-10-02: 127,88 MT"><div style="height: 77.597087378641%"></div><small>02</small></div>
+                                    <div class="chart-column" title="2026-10-03: 159,40 MT"><div style="height: 96.723300970874%"></div><small>03</small></div>
+                                    <div class="chart-column" title="2026-10-04: 123,56 MT"><div style="height: 74.97572815534%"></div><small>04</small></div>
+                                    <div class="chart-column" title="2026-10-05: 163,00 MT"><div style="height: 98.907766990291%"></div><small>05</small></div>
+                                    <div class="chart-column" title="2026-10-06: 123,74 MT"><div style="height: 75.084951456311%"></div><small>06</small></div>
+                                    <div class="chart-column" title="2026-10-07: 157,60 MT"><div style="height: 95.631067961165%"></div><small>07</small></div>
+                                    <div class="chart-column" title="2026-10-08: 132,92 MT"><div style="height: 80.655339805825%"></div><small>08</small></div>
+                                    <div class="chart-column" title="2026-10-09: 152,20 MT"><div style="height: 92.354368932039%"></div><small>09</small></div>
+                                    <div class="chart-column" title="2026-10-10: 128,60 MT"><div style="height: 78.033980582524%"></div><small>10</small></div>
+                                    <div class="chart-column" title="2026-10-11: 160,30 MT"><div style="height: 97.269417475728%"></div><small>11</small></div>
+                                    <div class="chart-column" title="2026-10-12: 124,28 MT"><div style="height: 75.412621359223%"></div><small>12</small></div>
+                                    <div class="chart-column" title="2026-10-13: 163,90 MT"><div style="height: 99.453883495146%"></div><small>13</small></div>
+                                    <div class="chart-column" title="2026-10-14: 124,46 MT"><div style="height: 75.521844660194%"></div><small>14</small></div>
+                                    <div class="chart-column" title="2026-10-15: 158,50 MT"><div style="height: 96.177184466019%"></div><small>15</small></div>
+                                    <div class="chart-column" title="2026-10-16: 133,64 MT"><div style="height: 81.092233009709%"></div><small>16</small></div>
+                                    <div class="chart-column" title="2026-10-17: 153,10 MT"><div style="height: 92.900485436893%"></div><small>17</small></div>
+                                    <div class="chart-column" title="2026-10-18: 129,32 MT"><div style="height: 78.470873786408%"></div><small>18</small></div>
+                                    <div class="chart-column" title="2026-10-19: 156,70 MT"><div style="height: 95.084951456311%"></div><small>19</small></div>
+                                    <div class="chart-column" title="2026-10-20: 125,00 MT"><div style="height: 75.849514563107%"></div><small>20</small></div>
+                                    <div class="chart-column" title="2026-10-21: 164,80 MT"><div style="height: 100%"></div><small>21</small></div>
+                                    <div class="chart-column" title="2026-10-22: 120,68 MT"><div style="height: 73.228155339806%"></div><small>22</small></div>
+                                    <div class="chart-column" title="2026-10-23: 159,40 MT"><div style="height: 96.723300970874%"></div><small>23</small></div>
+                                    <div class="chart-column" title="2026-10-24: 129,86 MT"><div style="height: 78.79854368932%"></div><small>24</small></div>
+                                    <div class="chart-column" title="2026-10-25: 154,00 MT"><div style="height: 93.446601941748%"></div><small>25</small></div>
+                                    <div class="chart-column" title="2026-10-26: 130,04 MT"><div style="height: 78.907766990291%"></div><small>26</small></div>
+                                    <div class="chart-column" title="2026-10-27: 127,12 MT"><div style="height: 77.135922330097%"></div><small>27</small></div>
+                </div><small>Sumber: data penimbangan lokal (NETTO / 1000)</small>
+            </div>
+        </div>
+    </section>
+    <section class="tab-pane ">
+        <div class="section-header"><div class="section-title"><h2>Laporan Keuangan (Financial Statements)</h2><p>Laba Rugi dan Neraca terintegrasi otomatis dari General Ledger</p></div></div>
+        <div class="grid-2"><div class="card"><div class="card-title">Laporan Laba Rugi (Income Statement)<small>MTD Oktober 2026</small></div><table class="table-accounting"><tbody>
+            <tr><td>Volume Penjualan Batubara</td><td class="num"><strong>1.076,24 MT</strong></td></tr><tr><td>Pendapatan Penjualan Batubara</td><td class="num"><strong>Rp 990.138</strong></td></tr><tr><td>Beban Pokok Penjualan (COGS)</td><td class="num"><strong>Rp 717.135</strong></td></tr><tr><td>Laba Kotor (Gross Profit)</td><td class="num"><strong>Rp 273.003</strong></td></tr><tr><td>Margin Laba Kotor (%)</td><td class="num"><strong>27.6%</strong></td></tr><tr><td>Beban Umum &amp; Administrasi</td><td class="num"><strong>Rp (10.218)</strong></td></tr><tr><td>Beban Penjualan &amp; Pemasaran</td><td class="num"><strong>Rp 62.767</strong></td></tr><tr><td>EBITDA / Laba Operasional</td><td class="num"><strong>Rp 220.454</strong></td></tr><tr><td>Margin EBITDA (%)</td><td class="num"><strong>22.3%</strong></td></tr><tr><td>Beban Keuangan</td><td class="num"><strong>Rp -</strong></td></tr><tr><td>Selisih Kurs</td><td class="num"><strong>Rp -</strong></td></tr><tr><td>LABA BERSIH SEBELUM PAJAK</td><td class="num"><strong>Rp 220.454</strong></td></tr><tr><td>Net Profit Margin (%)</td><td class="num"><strong>22.3%</strong></td></tr>        </tbody></table></div><div class="card"><div class="card-title">Neraca Keuangan (Balance Sheet)<small>Per 27 Oktober 2026</small></div><table class="table-accounting"><tbody>
+            <tr><td><strong>ASET LANCAR (CURRENT ASSETS)</strong></td><td class="num"></td></tr><tr><td><strong>Kas dan Setara Kas</strong></td><td class="num">Rp 18.450.000</td></tr><tr><td><strong>Piutang Usaha</strong></td><td class="num">Rp 14.200.000</td></tr><tr><td><strong>Persediaan Batubara (4 Stockpile)</strong></td><td class="num">Rp 50.242.421</td></tr><tr><td><strong>Total Aset Lancar</strong></td><td class="num">Rp 86.712.421</td></tr><tr><td><strong>ASET TIDAK LANCAR (NON-CURRENT ASSETS)</strong></td><td class="num"></td></tr><tr><td><strong>Alat Berat &amp; Infrastruktur (Netto)</strong></td><td class="num">Rp 96.100.000</td></tr><tr><td><strong>TOTAL ASET</strong></td><td class="num">Rp 182.812.421</td></tr><tr><td><strong>LIABILITAS &amp; KEWAJIBAN</strong></td><td class="num"></td></tr><tr><td><strong>Utang Usaha &amp; Biaya Akrual</strong></td><td class="num">Rp 20.540.000</td></tr><tr><td><strong>Liabilitas Jangka Panjang</strong></td><td class="num">Rp 33.400.000</td></tr><tr><td><strong>Total Liabilitas</strong></td><td class="num">Rp 53.940.000</td></tr><tr><td><strong>EKUITAS (EQUITY)</strong></td><td class="num"></td></tr><tr><td><strong>Modal Saham &amp; Saldo Laba</strong></td><td class="num">Rp 115.000.000</td></tr><tr><td><strong>Laba Periode Berjalan</strong></td><td class="num">Rp 220.454</td></tr><tr><td><strong>Total Ekuitas</strong></td><td class="num">Rp 115.220.454</td></tr><tr><td><strong>TOTAL LIABILITAS &amp; EKUITAS</strong></td><td class="num">Rp 169.160.454</td></tr>        </tbody></table></div></div>
+    </section>
+
+    <section class="tab-pane ">
+        <div class="section-header"><div class="section-title"><h2>Pusat Integrasi & Sumber Data</h2><p>Konfigurasi konektor D365 dan Google Sheets</p></div></div>
+        <div class="grid-2"><div class="card"><div class="card-title">Microsoft Dynamics 365 OData Connector <span class="sync-badge">Konfigurasi</span></div><p>Menarik transaksi jurnal General Ledger tanpa ekspor manual.</p><div class="integration-details"><div><strong>Environment URL:</strong> <code>https://company-prod.operations.dynamics.com</code></div><div><strong>Entity Target:</strong> <code>GeneralJournalAccountEntries</code></div><div><strong>Sinkronisasi Terakhir:</strong> 2026-10-27T06:42:59.912Z</div></div></div><div class="card"><div class="card-title">Google Sheets Weighbridge Connector <span class="sync-badge">Data Lokal</span></div><p>Membaca data penimbangan dan mengonversi NETTO menjadi Metric Ton.</p><div class="integration-details"><div><strong>Spreadsheet ID:</strong> <code>1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms</code></div><div><strong>Sheet Tab:</strong> <code>Timbangan_Harian</code></div><div><strong>Formula MT:</strong> <code>NETTO / 1000</code></div><div><strong>Sinkronisasi Terakhir:</strong> 2026-10-27T06:53:01.892Z</div></div></div></div>
+        <div class="table-card" id="import-gl"><div class="table-heading">Impor Data General Ledger ke MySQL</div><form action="http://127.0.0.1:8001/import-gl" method="post" enctype="multipart/form-data" class="upload-form"><input type="hidden" name="_token" value="RnP1XTGtf0QlvuRKXtVvmnXIGbBuP2W3k81QFDIy" autocomplete="off"><input type="file" name="gl_file" accept=".xlsx,.xls,.csv,.tsv,.txt" required><button class="btn btn-primary">📤 Impor & Hitung Ulang</button></form><small>Format yang didukung: Excel, CSV, TSV, TXT. Data lama akan digantikan oleh file impor.</small></div>
+        <div class="table-card"><div class="table-heading">15 Tiket Timbangan Terbaru</div><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Tgl & Jam</th><th>Produk</th><th>No Polisi</th><th>Sopir</th><th>Jembatan</th><th>BRUTO (Kg)</th><th>TARA (Kg)</th><th>NETTO (Kg)</th><th>NETTO (MT)</th><th>Operator</th></tr></thead><tbody><tr><td>2026-10-27 15:00</td><td><strong>ROM Coal</strong></td><td>KT 8821 NA</td><td>Sutrisno</td><td>WB-01 (PIT A)</td><td class="num">43.500</td><td class="num">13.400</td><td class="num"><strong>30.100</strong></td><td class="num"><strong>30,10 MT</strong></td><td>OP-Hadi</td></tr><tr><td>2026-10-27 14:47</td><td><strong>Barge Coal</strong></td><td>KT 8119 OP</td><td>Wahyu Hidayat</td><td>WB-04 (PORT JETTY)</td><td class="num">42.950</td><td class="num">13.230</td><td class="num"><strong>29.720</strong></td><td class="num"><strong>29,72 MT</strong></td><td>OP-Eko</td></tr><tr><td>2026-10-27 13:34</td><td><strong>Washed Coal</strong></td><td>KT 8763 AB</td><td>Rudi Hermanto</td><td>WB-03 (WASH PLANT)</td><td class="num">46.900</td><td class="num">13.060</td><td class="num"><strong>33.840</strong></td><td class="num"><strong>33,84 MT</strong></td><td>OP-Syaiful</td></tr><tr><td>2026-10-27 12:21</td><td><strong>Crushed Coal</strong></td><td>KT 8490 ZQ</td><td>Didik Wahyudi</td><td>WB-02 (BUA)</td><td class="num">46.350</td><td class="num">12.890</td><td class="num"><strong>33.460</strong></td><td class="num"><strong>33,46 MT</strong></td><td>OP-Fajar</td></tr><tr><td>2026-10-26 11:08</td><td><strong>ROM Coal</strong></td><td>KT 8345 XY</td><td>Agus Salim</td><td>WB-01 (PIT A)</td><td class="num">45.800</td><td class="num">12.720</td><td class="num"><strong>33.080</strong></td><td class="num"><strong>33,08 MT</strong></td><td>OP-Hadi</td></tr><tr><td>2026-10-26 10:55</td><td><strong>ROM Coal</strong></td><td>KT 8102 BK</td><td>Bambang Irawan</td><td>WB-04 (PORT JETTY)</td><td class="num">45.250</td><td class="num">12.550</td><td class="num"><strong>32.700</strong></td><td class="num"><strong>32,70 MT</strong></td><td>OP-Eko</td></tr><tr><td>2026-10-26 09:42</td><td><strong>Barge Coal</strong></td><td>KT 8821 NA</td><td>Sutrisno</td><td>WB-03 (WASH PLANT)</td><td class="num">46.200</td><td class="num">13.880</td><td class="num"><strong>32.320</strong></td><td class="num"><strong>32,32 MT</strong></td><td>OP-Syaiful</td></tr><tr><td>2026-10-26 08:29</td><td><strong>Washed Coal</strong></td><td>KT 8119 OP</td><td>Wahyu Hidayat</td><td>WB-02 (BUA)</td><td class="num">45.650</td><td class="num">13.710</td><td class="num"><strong>31.940</strong></td><td class="num"><strong>31,94 MT</strong></td><td>OP-Fajar</td></tr><tr><td>2026-10-25 07:16</td><td><strong>Crushed Coal</strong></td><td>KT 8763 AB</td><td>Rudi Hermanto</td><td>WB-01 (PIT A)</td><td class="num">45.100</td><td class="num">13.540</td><td class="num"><strong>31.560</strong></td><td class="num"><strong>31,56 MT</strong></td><td>OP-Hadi</td></tr><tr><td>2026-10-25 20:03</td><td><strong>ROM Coal</strong></td><td>KT 8490 ZQ</td><td>Didik Wahyudi</td><td>WB-04 (PORT JETTY)</td><td class="num">44.550</td><td class="num">13.370</td><td class="num"><strong>31.180</strong></td><td class="num"><strong>31,18 MT</strong></td><td>OP-Eko</td></tr><tr><td>2026-10-25 19:50</td><td><strong>ROM Coal</strong></td><td>KT 8345 XY</td><td>Agus Salim</td><td>WB-03 (WASH PLANT)</td><td class="num">44.000</td><td class="num">13.200</td><td class="num"><strong>30.800</strong></td><td class="num"><strong>30,80 MT</strong></td><td>OP-Syaiful</td></tr><tr><td>2026-10-25 18:37</td><td><strong>Barge Coal</strong></td><td>KT 8102 BK</td><td>Bambang Irawan</td><td>WB-02 (BUA)</td><td class="num">43.450</td><td class="num">13.030</td><td class="num"><strong>30.420</strong></td><td class="num"><strong>30,42 MT</strong></td><td>OP-Fajar</td></tr><tr><td>2026-10-25 17:24</td><td><strong>Washed Coal</strong></td><td>KT 8821 NA</td><td>Sutrisno</td><td>WB-01 (PIT A)</td><td class="num">42.900</td><td class="num">12.860</td><td class="num"><strong>30.040</strong></td><td class="num"><strong>30,04 MT</strong></td><td>OP-Hadi</td></tr><tr><td>2026-10-24 16:11</td><td><strong>Crushed Coal</strong></td><td>KT 8119 OP</td><td>Wahyu Hidayat</td><td>WB-04 (PORT JETTY)</td><td class="num">42.350</td><td class="num">12.690</td><td class="num"><strong>29.660</strong></td><td class="num"><strong>29,66 MT</strong></td><td>OP-Eko</td></tr><tr><td>2026-10-24 15:58</td><td><strong>ROM Coal</strong></td><td>KT 8763 AB</td><td>Rudi Hermanto</td><td>WB-03 (WASH PLANT)</td><td class="num">46.300</td><td class="num">12.520</td><td class="num"><strong>33.780</strong></td><td class="num"><strong>33,78 MT</strong></td><td>OP-Syaiful</td></tr></tbody></table></div></div>
+    </section>
+</main>
+<footer class="app-footer"><strong>PT Coal Mining & Resources</strong> • Sistem Dashboard Akuntansi & Biaya Produksi Batubara <span>Hosting Lokal • PHP Laravel & MySQL</span></footer>
+</body>
+</html>
+    <section class="tab-pane ">
+        <div class="section-header"><div class="section-title"><h2>Analisis Biaya per Metric Ton (Cost / MT)</h2><p>Kombinasi biaya akuntansi dengan volume timbangan</p></div></div>
+        <div class="cost-stage-grid"><div class="cost-stage-card"><h4>Mining (Penambangan)</h4><div class="cost-stage-rate">Rp 1.288.027</div><div class="cost-stage-unit">per MT Tahapan (1.525,02 MT)</div><small>Total Biaya: Rp 1.964.267 (Ribuan IDR)</small></div><div class="cost-stage-card"><h4>Coal Hauling (Pengangkutan)</h4><div class="cost-stage-rate">Rp 80.620</div><div class="cost-stage-unit">per MT Tahapan (3.234,93 MT)</div><small>Total Biaya: Rp 260.801 (Ribuan IDR)</small></div><div class="cost-stage-card"><h4>Washing Plant (Pencucian)</h4><div class="cost-stage-rate">Rp 181.794</div><div class="cost-stage-unit">per MT Tahapan (760,26 MT)</div><small>Total Biaya: Rp 138.211 (Ribuan IDR)</small></div><div class="cost-stage-card"><h4>BP PORT &amp; Jetty (Pelabuhan)</h4><div class="cost-stage-rate">Rp 60.884</div><div class="cost-stage-unit">per MT Tahapan (760,38 MT)</div><small>Total Biaya: Rp 46.295 (Ribuan IDR)</small></div><div class="cost-stage-card"><h4>General &amp; Administrative (GA)</h4><div class="cost-stage-rate">Rp (2.685)</div><div class="cost-stage-unit">per MT Tahapan (3.805,80 MT)</div><small>Total Biaya: Rp (10.218) (Ribuan IDR)</small></div><div class="cost-stage-card"><h4>Selling Expense (Pemasaran)</h4><div class="cost-stage-rate">Rp 82.547</div><div class="cost-stage-unit">per MT Tahapan (760,38 MT)</div><small>Total Biaya: Rp 62.767 (Ribuan IDR)</small></div></div>
+        <div class="table-card"><div class="table-heading">Rincian Biaya per Tahapan Pertambangan Batubara</div><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Aktivitas Pertambangan</th><th>Biaya Valuation to ('000 Rp)</th><th>Biaya Costing to ('000 Rp)</th><th>Total Biaya ('000 Rp)</th><th>Volume Operasi (MT)</th><th>Cost / MT Tahapan</th><th>Cost / MT Total Produksi</th></tr></thead><tbody><tr><td><strong>Mining (Penambangan)</strong></td><td class="num">910.301</td><td class="num">1.053.966</td><td class="num"><strong>1.964.267</strong></td><td class="num">1.525,02 MT</td><td class="num"><strong>Rp 1.288.027</strong></td><td class="num">Rp 516.125</td></tr><tr><td><strong>Coal Hauling (Pengangkutan)</strong></td><td class="num">219.690</td><td class="num">41.111</td><td class="num"><strong>260.801</strong></td><td class="num">3.234,93 MT</td><td class="num"><strong>Rp 80.620</strong></td><td class="num">Rp 68.527</td></tr><tr><td><strong>Washing Plant (Pencucian)</strong></td><td class="num">10.825</td><td class="num">127.386</td><td class="num"><strong>138.211</strong></td><td class="num">760,26 MT</td><td class="num"><strong>Rp 181.794</strong></td><td class="num">Rp 36.316</td></tr><tr><td><strong>BP PORT &amp; Jetty (Pelabuhan)</strong></td><td class="num">14.983</td><td class="num">31.312</td><td class="num"><strong>46.295</strong></td><td class="num">760,38 MT</td><td class="num"><strong>Rp 60.884</strong></td><td class="num">Rp 12.164</td></tr><tr><td><strong>General &amp; Administrative (GA)</strong></td><td class="num">-</td><td class="num">(10.218)</td><td class="num"><strong>(10.218)</strong></td><td class="num">3.805,80 MT</td><td class="num"><strong>Rp (2.685)</strong></td><td class="num">Rp (2.685)</td></tr><tr><td><strong>Selling Expense (Pemasaran)</strong></td><td class="num">-</td><td class="num">62.767</td><td class="num"><strong>62.767</strong></td><td class="num">760,38 MT</td><td class="num"><strong>Rp 82.547</strong></td><td class="num">Rp 16.492</td></tr></tbody></table></div></div>
+    </section>
+
+    <section class="tab-pane ">
+        <div class="section-header"><div class="section-title"><h2>Valuasi Persediaan Batubara (Moving Average)</h2><p>Perhitungan persediaan bergerak multi-stockpile dari timbangan dan biaya kapitalisasi GL</p></div><a class="btn btn-outline" href="#inventory-setup">⚙️ Setup Saldo Awal</a></div>
+        <div class="stockpile-flow"><div class="stage-card"><span class="stage-badge">Pit Stockpile A</span><h3>ROM Coal (Stockpile Pit)</h3><div class="stage-metrics">
+            <div class="stage-metric-row"><span>Saldo Awal:</span><span>25.400,00 MT (Rp 9.652.000)</span></div><div class="stage-metric-row"><span>Produksi / Masuk:</span><strong>+1.525,02 MT</strong></div><div class="stage-metric-row"><span>Biaya Valuation to:</span><span>+Rp 910.301</span></div><div class="stage-metric-row"><span>Moving Avg Rate:</span><strong>Rp 412.110 / MT</strong></div><div class="stage-metric-row"><span>Keluar / Transfer:</span><span>-1.403,02 MT</span></div><div class="stage-metric-row"><span>Saldo Akhir MT:</span><strong>25.522,00 MT</strong></div><div class="stage-metric-row"><span>Total Nilai Persediaan:</span><strong>Rp 10.517.861</strong></div>
+        </div></div><div class="stage-card"><span class="stage-badge">Stockpile BUA Intermediate</span><h3>Intermediate Coal (Stockpile BUA)</h3><div class="stage-metrics">
+            <div class="stage-metric-row"><span>Saldo Awal:</span><span>18.200,00 MT (Rp 8.918.000)</span></div><div class="stage-metric-row"><span>Produksi / Masuk:</span><strong>+1.403,02 MT</strong></div><div class="stage-metric-row"><span>Biaya Valuation to:</span><span>+Rp 219.690</span></div><div class="stage-metric-row"><span>Moving Avg Rate:</span><strong>Rp 495.632 / MT</strong></div><div class="stage-metric-row"><span>Keluar / Transfer:</span><span>-1.332,87 MT</span></div><div class="stage-metric-row"><span>Saldo Akhir MT:</span><strong>18.270,15 MT</strong></div><div class="stage-metric-row"><span>Total Nilai Persediaan:</span><strong>Rp 9.055.275</strong></div>
+        </div></div><div class="stage-card"><span class="stage-badge">Stockpile Washing Plant</span><h3>Washed Coal (Stockpile WP)</h3><div class="stage-metrics">
+            <div class="stage-metric-row"><span>Saldo Awal:</span><span>12.500,00 MT (Rp 7.250.000)</span></div><div class="stage-metric-row"><span>Produksi / Masuk:</span><strong>+679,76 MT</strong></div><div class="stage-metric-row"><span>Biaya Valuation to:</span><span>+Rp 10.825</span></div><div class="stage-metric-row"><span>Moving Avg Rate:</span><strong>Rp 580.981 / MT</strong></div><div class="stage-metric-row"><span>Keluar / Transfer:</span><span>-611,79 MT</span></div><div class="stage-metric-row"><span>Saldo Akhir MT:</span><strong>12.567,98 MT</strong></div><div class="stage-metric-row"><span>Total Nilai Persediaan:</span><strong>Rp 7.301.756</strong></div>
+        </div></div><div class="stage-card"><span class="stage-badge">BP PORT / Jetty Stockpile</span><h3>Port Stockpile (BP PORT)</h3><div class="stage-metrics">
+            <div class="stage-metric-row"><span>Saldo Awal:</span><span>35.000,00 MT (Rp 23.450.000)</span></div><div class="stage-metric-row"><span>Produksi / Masuk:</span><strong>+1.144,93 MT</strong></div><div class="stage-metric-row"><span>Biaya Valuation to:</span><span>+Rp 14.983</span></div><div class="stage-metric-row"><span>Moving Avg Rate:</span><strong>Rp 666.336 / MT</strong></div><div class="stage-metric-row"><span>Keluar / Transfer:</span><span>-1.076,24 MT</span></div><div class="stage-metric-row"><span>Saldo Akhir MT:</span><strong>35.068,70 MT</strong></div><div class="stage-metric-row"><span>Total Nilai Persediaan:</span><strong>Rp 23.367.529</strong></div>
+        </div></div></div>
+        <div class="table-card"><div class="table-heading">Buku Pembantu Persediaan Batubara (Stock Ledger Moving Average)</div><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Tahapan Persediaan</th><th>Saldo Awal Qty (MT)</th><th>Saldo Awal Rate (Rp/MT)</th><th>Saldo Awal Nilai ('000 Rp)</th><th>Penerimaan Qty (MT)</th><th>Penerimaan Nilai ('000 Rp)</th><th>Moving Avg Rate (Rp/MT)</th><th>Pengeluaran Qty (MT)</th><th>Pengeluaran Nilai ('000 Rp)</th><th>Saldo Akhir Qty (MT)</th><th>Saldo Akhir Nilai ('000 Rp)</th></tr></thead><tbody><tr><td><strong>ROM Coal (Stockpile Pit)</strong><br><small>Pit Stockpile A</small></td><td class="num">25.400,00 MT</td><td class="num">Rp 380.000</td><td class="num">9.652.000</td><td class="num">1.525,02 MT</td><td class="num">1.444.058</td><td class="num">Rp 412.110</td><td class="num">1.403,02 MT</td><td class="num">578.197</td><td class="num">25.522,00 MT</td><td class="num">10.517.861</td></tr><tr><td><strong>Intermediate Coal (Stockpile BUA)</strong><br><small>Stockpile BUA Intermediate</small></td><td class="num">18.200,00 MT</td><td class="num">Rp 490.000</td><td class="num">8.918.000</td><td class="num">1.403,02 MT</td><td class="num">797.887</td><td class="num">Rp 495.632</td><td class="num">1.332,87 MT</td><td class="num">660.612</td><td class="num">18.270,15 MT</td><td class="num">9.055.275</td></tr><tr><td><strong>Washed Coal (Stockpile WP)</strong><br><small>Stockpile Washing Plant</small></td><td class="num">12.500,00 MT</td><td class="num">Rp 580.000</td><td class="num">7.250.000</td><td class="num">679,76 MT</td><td class="num">407.192</td><td class="num">Rp 580.981</td><td class="num">611,79 MT</td><td class="num">355.436</td><td class="num">12.567,98 MT</td><td class="num">7.301.756</td></tr><tr><td><strong>Port Stockpile (BP PORT)</strong><br><small>BP PORT / Jetty Stockpile</small></td><td class="num">35.000,00 MT</td><td class="num">Rp 670.000</td><td class="num">23.450.000</td><td class="num">1.144,93 MT</td><td class="num">634.664</td><td class="num">Rp 666.336</td><td class="num">1.076,24 MT</td><td class="num">717.135</td><td class="num">35.068,70 MT</td><td class="num">23.367.529</td></tr></tbody></table></div></div>
+        <div class="card" id="inventory-setup"><div class="card-title">⚙️ Setup Saldo Awal Persediaan Batubara</div><form action="http://127.0.0.1:8001/inventory" method="post"><input type="hidden" name="_token" value="RnP1XTGtf0QlvuRKXtVvmnXIGbBuP2W3k81QFDIy" autocomplete="off"><div class="inventory-form-grid"><div class="form-group"><label for="mining-qty">ROM Coal (Stockpile Pit) (MT)</label><input id="mining-qty" name="mining_qty" type="number" step="any" min="0" required value="25400"></div><div class="form-group"><label for="mining-value">Nilai ROM Coal (Stockpile Pit) (IDR)</label><input id="mining-value" name="mining_value" type="number" step="any" min="0" required value="9652000000"></div><div class="form-group"><label for="hauling-qty">Intermediate Coal (Stockpile BUA) (MT)</label><input id="hauling-qty" name="hauling_qty" type="number" step="any" min="0" required value="18200"></div><div class="form-group"><label for="hauling-value">Nilai Intermediate Coal (Stockpile BUA) (IDR)</label><input id="hauling-value" name="hauling_value" type="number" step="any" min="0" required value="8918000000"></div><div class="form-group"><label for="washing-qty">Washed Coal (Stockpile WP) (MT)</label><input id="washing-qty" name="washing_qty" type="number" step="any" min="0" required value="12500"></div><div class="form-group"><label for="washing-value">Nilai Washed Coal (Stockpile WP) (IDR)</label><input id="washing-value" name="washing_value" type="number" step="any" min="0" required value="7250000000"></div><div class="form-group"><label for="port-qty">Port Stockpile (BP PORT) (MT)</label><input id="port-qty" name="port_qty" type="number" step="any" min="0" required value="35000"></div><div class="form-group"><label for="port-value">Nilai Port Stockpile (BP PORT) (IDR)</label><input id="port-value" name="port_value" type="number" step="any" min="0" required value="23450000000"></div></div><button class="btn btn-primary">Simpan Setup</button></form></div>
+    </section>
+
+    <section class="tab-pane active">
+        <div class="section-header"><div class="section-title"><h2>Report Cost: Matriks Valuation to & Costing to</h2><p>Nilai dalam Ribuan IDR</p></div><div class="section-actions"><a class="btn btn-primary" href="http://127.0.0.1:8001/export-matrix">📥 Export Excel/CSV</a></div></div>
+        <form class="section-actions matrix-filters" method="get" action="http://127.0.0.1:8001"><input type="hidden" name="tab" value="matrix"><input class="input-search" name="search" value="" placeholder="🔍 Cari Kode / Nama Akun..."><label><input type="checkbox" name="parents_only" value="1" > Hanya Akun Induk</label><label><input type="checkbox" name="hide_zero" value="1" > Sembunyikan Saldo 0</label><button class="btn btn-outline">Terapkan Filter</button></form>
+        <div class="table-card"><div class="table-responsive"><table class="table-accounting">
+            <thead><tr><th rowspan="2" class="th-general">AccountCode</th><th rowspan="2" class="th-general">AccountName</th><th rowspan="2" class="th-general">Cek</th><th rowspan="2" class="th-general">ALL Cost</th><th colspan="4" class="th-val-group col-header-group">Valuation to (Stok Persediaan)</th><th colspan="6" class="th-cost-group col-header-group">Costing to (Beban Periode)</th></tr><tr><th class="th-val-sub">Mining</th><th class="th-val-sub">Coal Hauling</th><th class="th-val-sub">Washing Plant</th><th class="th-val-sub">BP PORT</th> <th class="th-cost-sub">Mining</th><th class="th-cost-sub">Coal Hauling</th><th class="th-cost-sub">Washing Plant</th><th class="th-cost-sub">BP PORT</th><th class="th-cost-sub">GA</th><th class="th-cost-sub">Selling Expense</th></tr></thead>
+            <tbody>                                                                <tr class="parent-row"><td><strong>5000000</strong></td><td class="td-text">▾ Employee Salary &amp; Welfare</td><td class="num">-</td><td class="num"><strong>1.002.373</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">1.002.373</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000051</strong></td><td class="td-text">　 Salaries</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000052</strong></td><td class="td-text">　 Overtime</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000053</strong></td><td class="td-text">　 Insentif / Bonus/ THR</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000054</strong></td><td class="td-text">　 Allowance &amp; Compensation</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000055</strong></td><td class="td-text">　 Severence Pay</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000056</strong></td><td class="td-text">　 Medical</td><td class="num">-</td><td class="num"><strong>1.002.373</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">1.002.373</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000057</strong></td><td class="td-text">　 Employee Insurance (BPJS TK)</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000058</strong></td><td class="td-text">　 Employee Insurance (BPJS Health)</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000059</strong></td><td class="td-text">　 Employee Insurance (Pension)</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000060</strong></td><td class="td-text">　 Employee Wellfare (Natura)</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000061</strong></td><td class="td-text">　 Provision Employee Retirement Benefit</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000100</strong></td><td class="td-text">▾ Equipment Rent</td><td class="num">-</td><td class="num"><strong>156.263</strong></td><td class="num ">-</td><td class="num ">13.894</td><td class="num ">-</td><td class="num ">14.983</td><td class="num ">-</td><td class="num ">-</td><td class="num ">127.386</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000101</strong></td><td class="td-text">　 Equipment Rent</td><td class="num">-</td><td class="num"><strong>13.894</strong></td><td class="num ">-</td><td class="num ">13.894</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000102</strong></td><td class="td-text">　 Vehicle Rent</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000103</strong></td><td class="td-text">　 Tug and Barge Hire</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000104</strong></td><td class="td-text">　 Barge Loading Conveyor Rent</td><td class="num">-</td><td class="num"><strong>14.983</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">14.983</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000105</strong></td><td class="td-text">　 Wash Plant Rent</td><td class="num">-</td><td class="num"><strong>127.386</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">127.386</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000108</strong></td><td class="td-text">　 ISP Rent</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000109</strong></td><td class="td-text">　 Land And Road Rent</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000200</strong></td><td class="td-text">▾ Building Rent</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000201</strong></td><td class="td-text">　 Building Rent Expense</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000300</strong></td><td class="td-text">▾ Freight &amp; Handling Charges</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000301</strong></td><td class="td-text">　 Freight &amp; Handling Heavy Equipment</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000302</strong></td><td class="td-text">　 Freight &amp; Handling Fuel</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000303</strong></td><td class="td-text">　 Freight &amp; Handling Sparepart</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000304</strong></td><td class="td-text">　 Freight &amp; Handling Others Material</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000400</strong></td><td class="td-text">▾ Contractor Cost</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000404</strong></td><td class="td-text">　 OB Removal</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000405</strong></td><td class="td-text">　 Coal Getting</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000406</strong></td><td class="td-text">　 Coal Hauling pit to BUA/stockpile</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000407</strong></td><td class="td-text">　 Coal Hauling BUA to WP</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000408</strong></td><td class="td-text">　 Coal Hauling WP to Port</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000409</strong></td><td class="td-text">　 Coal hauling BUA to Port</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000410</strong></td><td class="td-text">　 Road Maintenance</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000411</strong></td><td class="td-text">　 Coal Loading</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000500</strong></td><td class="td-text">▾ Consultant Fee</td><td class="num">-</td><td class="num"><strong>25.508</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">16.560</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">8.948</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000501</strong></td><td class="td-text">　 Consultant Fee</td><td class="num">-</td><td class="num"><strong>25.508</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">16.560</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">8.948</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000600</strong></td><td class="td-text">▾ Consumable Goods</td><td class="num">-</td><td class="num"><strong>1.221.001</strong></td><td class="num ">910.301</td><td class="num ">205.796</td><td class="num ">10.825</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">31.312</td><td class="num ">-</td><td class="num ">62.767</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000601</strong></td><td class="td-text">　 Fuel</td><td class="num">-</td><td class="num"><strong>1.221.001</strong></td><td class="num ">910.301</td><td class="num ">205.796</td><td class="num ">10.825</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">31.312</td><td class="num ">-</td><td class="num ">62.767</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000604</strong></td><td class="td-text">　 Stores</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000605</strong></td><td class="td-text">　 Tools</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000606</strong></td><td class="td-text">　 Office Supplies</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000607</strong></td><td class="td-text">　 IT Consumables</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000800</strong></td><td class="td-text">▾ Repair &amp; Maintenance</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000801</strong></td><td class="td-text">　 Repair &amp; Maintenance-Service</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000802</strong></td><td class="td-text">　 Repair &amp; Maintenance-Sparepart</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000803</strong></td><td class="td-text">　 Repair &amp; Maintenance-Oil &amp; Lubricants</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000804</strong></td><td class="td-text">　 Repair &amp; Maintenance-Tyre &amp; Accessories</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5000900</strong></td><td class="td-text">▾ Depreciation &amp; Amortization</td><td class="num">-</td><td class="num"><strong>(19.166)</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num num-neg">(19.166)</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5999999</strong></td><td class="td-text">　 Heavy Equipment Rent - Contra</td><td class="num">-</td><td class="num"><strong>(19.166)</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num num-neg">(19.166)</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001000</strong></td><td class="td-text">▾ Licence &amp; Permit</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001001</strong></td><td class="td-text">　 Licence &amp; Permit</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001200</strong></td><td class="td-text">▾ Electricity &amp; Water</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001201</strong></td><td class="td-text">　 Electricity</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001300</strong></td><td class="td-text">▾ Telephone, Communication &amp; Network</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001302</strong></td><td class="td-text">　 Network</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001400</strong></td><td class="td-text">▾ Utilities</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001401</strong></td><td class="td-text">　 Printing &amp; Stationery</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001402</strong></td><td class="td-text">　 Mess Expense</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001403</strong></td><td class="td-text">　 Postage &amp; Courier</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001404</strong></td><td class="td-text">　 Office Expense</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001500</strong></td><td class="td-text">▾ Traveling</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001501</strong></td><td class="td-text">　 Ticket</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001502</strong></td><td class="td-text">　 Meals</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001503</strong></td><td class="td-text">　 Hotel</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001700</strong></td><td class="td-text">▾ Other Direct Overhead</td><td class="num">-</td><td class="num"><strong>76.144</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">35.033</td><td class="num ">41.111</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001701</strong></td><td class="td-text">　 Catering</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001702</strong></td><td class="td-text">　 Local Tax</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000402</strong></td><td class="td-text">　 Labour Outsourcing Expense</td><td class="num">-</td><td class="num"><strong>76.144</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">35.033</td><td class="num ">41.111</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5000403</strong></td><td class="td-text">　 Security Expenses</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001712</strong></td><td class="td-text">　 Safety &amp; Environmental</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>5001800</strong></td><td class="td-text">▾ Corporate Social Responsibility</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001801</strong></td><td class="td-text">　 Entertainment</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>5001802</strong></td><td class="td-text">　 Donation &amp; Gift</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>6000000</strong></td><td class="td-text">▾ Selling Expense</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>7000000</strong></td><td class="td-text">▾ Interest Income</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>7001000</strong></td><td class="td-text">▾ Finance Cost</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>7001001</strong></td><td class="td-text">　 Interest Expenses Lease Financing</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>7001003</strong></td><td class="td-text">　 Bank Charges</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>7001006</strong></td><td class="td-text">　 Round Off</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="parent-row"><td><strong>7002000</strong></td><td class="td-text">▾ Gain &amp; Loss Forex</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+                                                                            <tr class="child-row"><td><strong>7002002</strong></td><td class="td-text">　 Forex (Gain)/Losses Realised</td><td class="num">-</td><td class="num"><strong>-</strong></td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td><td class="num ">-</td></tr>
+            </tbody><tfoot><tr class="grand-total-row"><td>TOTAL</td><td class="td-text">Grand Total Biaya</td><td class="num">-</td><td class="num">2.462.123</td><td class="num">910.301</td><td class="num">219.690</td><td class="num">10.825</td><td class="num">14.983</td><td class="num">1.053.966</td><td class="num">41.111</td><td class="num">127.386</td><td class="num">31.312</td><td class="num">(10.218)</td><td class="num">62.767</td></tr></tfoot>
+        </table></div></div>
+    </section>

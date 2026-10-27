@@ -1,0 +1,583 @@
+[
+  {
+    "code": "5000000",
+    "name": "Employee Salary & Welfare",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 1002374, "costHauling": 10, "costWP": 210, "costPort": 425, "costGA": 4037, "costSelling": 0
+  },
+  {
+    "code": "5000051",
+    "name": "Salaries",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000052",
+    "name": "Overtime",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000053",
+    "name": "Insentif / Bonus/ THR",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000054",
+    "name": "Allowance & Compensation",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 1, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000055",
+    "name": "Severence Pay",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000056",
+    "name": "Medical",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 1002373, "costHauling": 10, "costWP": 210, "costPort": 425, "costGA": 4037, "costSelling": 0
+  },
+  {
+    "code": "5000057",
+    "name": "Employee Insurance (BPJS TK)",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000058",
+    "name": "Employee Insurance (BPJS Health)",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000059",
+    "name": "Employee Insurance (Pension)",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000060",
+    "name": "Employee Wellfare (Natura)",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000061",
+    "name": "Provision Employee Retirement Benefit",
+    "parent": "5000000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000100",
+    "name": "Equipment Rent",
+    "isParent": true,
+    "valMining": 0, "valHauling": 14903, "valWP": 0, "valPort": 14983,
+    "costMining": 19559, "costHauling": 0, "costWP": 127118, "costPort": 2915, "costGA": 0, "costSelling": 20917
+  },
+  {
+    "code": "5000101",
+    "name": "Equipment Rent",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 13894, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000102",
+    "name": "Vehicle Rent",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 1009, "valWP": 0, "valPort": 0,
+    "costMining": 19559, "costHauling": 0, "costWP": -268, "costPort": 2915, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000103",
+    "name": "Tug and Barge Hire",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000104",
+    "name": "Barge Loading Conveyor Rent",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 14983,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000105",
+    "name": "Wash Plant Rent",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 127386, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000108",
+    "name": "ISP Rent",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 20917
+  },
+  {
+    "code": "5000109",
+    "name": "Land And Road Rent",
+    "parent": "5000100",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000200",
+    "name": "Building Rent",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 385, "costHauling": 0, "costWP": 0, "costPort": 854, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000201",
+    "name": "Building Rent Expense",
+    "parent": "5000200",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 385, "costHauling": 0, "costWP": 0, "costPort": 854, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000300",
+    "name": "Freight & Handling Charges",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 24555, "costHauling": 0, "costWP": -97, "costPort": 12226, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000301",
+    "name": "Freight & Handling Heavy Equipment",
+    "parent": "5000300",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000302",
+    "name": "Freight & Handling Fuel",
+    "parent": "5000300",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 24083, "costHauling": 0, "costWP": 0, "costPort": 12226, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000303",
+    "name": "Freight & Handling Sparepart",
+    "parent": "5000300",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 504, "costHauling": 0, "costWP": -16, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000304",
+    "name": "Freight & Handling Others Material",
+    "parent": "5000300",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": -31, "costHauling": 0, "costWP": -81, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000400",
+    "name": "Contractor Cost",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000404",
+    "name": "OB Removal",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000405",
+    "name": "Coal Getting",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000406",
+    "name": "Coal Hauling pit to BUA/stockpile",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000407",
+    "name": "Coal Hauling BUA to WP",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000408",
+    "name": "Coal Hauling WP to Port",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000409",
+    "name": "Coal hauling BUA to Port",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000410",
+    "name": "Road Maintenance",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000411",
+    "name": "Coal Loading",
+    "parent": "5000400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000500",
+    "name": "Consultant Fee",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 16560, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 8948, "costSelling": 0
+  },
+  {
+    "code": "5000501",
+    "name": "Consultant Fee",
+    "parent": "5000500",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 16560, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 8948, "costSelling": 0
+  },
+  {
+    "code": "5000600",
+    "name": "Consumable Goods",
+    "isParent": true,
+    "valMining": 910587, "valHauling": 210387, "valWP": 10853, "valPort": 0,
+    "costMining": 53568, "costHauling": 0, "costWP": 14601, "costPort": 32869, "costGA": 1858, "costSelling": 62767
+  },
+  {
+    "code": "5000601",
+    "name": "Fuel",
+    "parent": "5000600",
+    "valMining": 910301, "valHauling": 205796, "valWP": 10825, "valPort": 0,
+    "costMining": 42258, "costHauling": 0, "costWP": 14368, "costPort": 31312, "costGA": 1660, "costSelling": 62767
+  },
+  {
+    "code": "5000604",
+    "name": "Stores",
+    "parent": "5000600",
+    "valMining": 286, "valHauling": 4591, "valWP": 28, "valPort": 0,
+    "costMining": 9923, "costHauling": 0, "costWP": 233, "costPort": 1557, "costGA": 97, "costSelling": 0
+  },
+  {
+    "code": "5000605",
+    "name": "Tools",
+    "parent": "5000600",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 762, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000606",
+    "name": "Office Supplies",
+    "parent": "5000600",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 589, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 101, "costSelling": 0
+  },
+  {
+    "code": "5000607",
+    "name": "IT Consumables",
+    "parent": "5000600",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 34, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000800",
+    "name": "Repair & Maintenance",
+    "isParent": true,
+    "valMining": 1653, "valHauling": 53640, "valWP": 368, "valPort": 0,
+    "costMining": 12104, "costHauling": 0, "costWP": 824, "costPort": 613, "costGA": 779, "costSelling": 0
+  },
+  {
+    "code": "5000801",
+    "name": "Repair & Maintenance-Service",
+    "parent": "5000800",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": -17, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000802",
+    "name": "Repair & Maintenance-Sparepart",
+    "parent": "5000800",
+    "valMining": 1653, "valHauling": 34207, "valWP": 368, "valPort": 0,
+    "costMining": 1240, "costHauling": 0, "costWP": 239, "costPort": 629, "costGA": 779, "costSelling": 0
+  },
+  {
+    "code": "5000803",
+    "name": "Repair & Maintenance-Oil & Lubricants",
+    "parent": "5000800",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 10864, "costHauling": 0, "costWP": 584, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000804",
+    "name": "Repair & Maintenance-Tyre & Accessories",
+    "parent": "5000800",
+    "valMining": 0, "valHauling": 19433, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000900",
+    "name": "Depreciation & Amortization",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": -19166, "costSelling": 0
+  },
+  {
+    "code": "5999999",
+    "name": "Heavy Equipment Rent - Contra",
+    "parent": "5000900",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": -19166, "costSelling": 0
+  },
+  {
+    "code": "5001000",
+    "name": "Licence & Permit",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 23, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 640, "costSelling": 0
+  },
+  {
+    "code": "5001001",
+    "name": "Licence & Permit",
+    "parent": "5001000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 23, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 640, "costSelling": 0
+  },
+  {
+    "code": "5001200",
+    "name": "Electricity & Water",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 214, "costSelling": 0
+  },
+  {
+    "code": "5001201",
+    "name": "Electricity",
+    "parent": "5001200",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 214, "costSelling": 0
+  },
+  {
+    "code": "5001300",
+    "name": "Telephone, Communication & Network",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 718, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 665, "costSelling": 0
+  },
+  {
+    "code": "5001302",
+    "name": "Network",
+    "parent": "5001300",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 718, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 665, "costSelling": 0
+  },
+  {
+    "code": "5001400",
+    "name": "Utilities",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 317, "costHauling": 0, "costWP": 0, "costPort": 487, "costGA": 305, "costSelling": 0
+  },
+  {
+    "code": "5001401",
+    "name": "Printing & Stationery",
+    "parent": "5001400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 125, "costSelling": 0
+  },
+  {
+    "code": "5001402",
+    "name": "Mess Expense",
+    "parent": "5001400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 115, "costHauling": 0, "costWP": 0, "costPort": 487, "costGA": 154, "costSelling": 0
+  },
+  {
+    "code": "5001403",
+    "name": "Postage & Courier",
+    "parent": "5001400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 27, "costSelling": 0
+  },
+  {
+    "code": "5001404",
+    "name": "Office Expense",
+    "parent": "5001400",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 202, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5001500",
+    "name": "Traveling",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 8820, "costHauling": 0, "costWP": 0, "costPort": 886, "costGA": 578, "costSelling": 0
+  },
+  {
+    "code": "5001501",
+    "name": "Ticket",
+    "parent": "5001500",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 8039, "costHauling": 0, "costWP": 0, "costPort": 511, "costGA": 176, "costSelling": 0
+  },
+  {
+    "code": "5001502",
+    "name": "Meals",
+    "parent": "5001500",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 535, "costHauling": 0, "costWP": 0, "costPort": 289, "costGA": 402, "costSelling": 0
+  },
+  {
+    "code": "5001503",
+    "name": "Hotel",
+    "parent": "5001500",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 246, "costHauling": 0, "costWP": 0, "costPort": 86, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5001700",
+    "name": "Other Direct Overhead",
+    "isParent": true,
+    "valMining": 2239, "valHauling": 0, "valWP": 3115, "valPort": 0,
+    "costMining": 88419, "costHauling": 41111, "costWP": 31915, "costPort": 23859, "costGA": 1873, "costSelling": 0
+  },
+  {
+    "code": "5001701",
+    "name": "Catering",
+    "parent": "5001700",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 4083, "costHauling": 0, "costWP": 0, "costPort": 8520, "costGA": 641, "costSelling": 0
+  },
+  {
+    "code": "5001702",
+    "name": "Local Tax",
+    "parent": "5001700",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": -19, "costHauling": 0, "costWP": 0, "costPort": 815, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5000402",
+    "name": "Labour Outsourcing Expense",
+    "parent": "5001700",
+    "valMining": 2239, "valHauling": 0, "valWP": 3115, "valPort": 0,
+    "costMining": 35033, "costHauling": 41111, "costWP": 24135, "costPort": 14524, "costGA": 1232, "costSelling": 0
+  },
+  {
+    "code": "5000403",
+    "name": "Security Expenses",
+    "parent": "5001700",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 36045, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5001712",
+    "name": "Safety & Environmental",
+    "parent": "5001700",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 13276, "costHauling": 0, "costWP": 7780, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "5001800",
+    "name": "Corporate Social Responsibility",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 1747, "costHauling": 0, "costWP": 0, "costPort": 56, "costGA": 28, "costSelling": 0
+  },
+  {
+    "code": "5001801",
+    "name": "Entertainment",
+    "parent": "5001800",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 1663, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 28, "costSelling": 0
+  },
+  {
+    "code": "5001802",
+    "name": "Donation & Gift",
+    "parent": "5001800",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 84, "costHauling": 0, "costWP": 0, "costPort": 56, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "6000000",
+    "name": "Selling Expense",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "7000000",
+    "name": "Interest Income",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "7001000",
+    "name": "Finance Cost",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": -169, "costSelling": 0
+  },
+  {
+    "code": "7001001",
+    "name": "Interest Expenses Lease Financing",
+    "parent": "7001000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": -198, "costSelling": 0
+  },
+  {
+    "code": "7001003",
+    "name": "Bank Charges",
+    "parent": "7001000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 29, "costSelling": 0
+  },
+  {
+    "code": "7001006",
+    "name": "Round Off",
+    "parent": "7001000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": 0, "costSelling": 0
+  },
+  {
+    "code": "7002000",
+    "name": "Gain & Loss Forex",
+    "isParent": true,
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": -5256, "costSelling": 0
+  },
+  {
+    "code": "7002002",
+    "name": "Forex (Gain)/Losses Realised",
+    "parent": "7002000",
+    "valMining": 0, "valHauling": 0, "valWP": 0, "valPort": 0,
+    "costMining": 0, "costHauling": 0, "costWP": 0, "costPort": 0, "costGA": -5256, "costSelling": 0
+  }
+]
