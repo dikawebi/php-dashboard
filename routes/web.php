@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\D365DataController;
+use App\Http\Controllers\D365SyncController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,12 +17,21 @@ Route::middleware('auth')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/inventory', [DashboardController::class, 'saveInventory'])->middleware('role:administrator,accountant,operations')->name('inventory.save');
     Route::post('/import-gl', [DashboardController::class, 'importGl'])->middleware('role:administrator,accountant')->name('gl.import');
+    Route::post('/d365/sync', [D365SyncController::class, 'sync'])->middleware('role:administrator,accountant')->name('d365.sync');
     Route::get('/export-matrix', [DashboardController::class, 'exportMatrix'])->name('matrix.export');
+
+    // Browser data tampungan MSD D365
+    Route::prefix('d365/data')->name('d365.data.')->group(function () {
+        Route::get('/', [D365DataController::class, 'index'])->name('index');
+        Route::get('/{entityKey}', [D365DataController::class, 'show'])->name('show');
+    });
 });
 
 Route::middleware(['auth', 'administrator'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/settings', [AdminSettingsController::class, 'edit'])->name('settings');
     Route::post('/settings', [AdminSettingsController::class, 'update'])->name('settings.update');
+    Route::post('/d365-settings', [D365SyncController::class, 'saveSettings'])->name('d365.settings.update');
     Route::post('/users', [AdminSettingsController::class, 'storeUser'])->name('users.store');
     Route::patch('/users/{user}', [AdminSettingsController::class, 'updateUser'])->name('users.update');
 });
+

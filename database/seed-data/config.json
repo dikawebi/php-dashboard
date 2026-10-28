@@ -20,9 +20,9 @@
   },
   "d365Config": {
     "enabled": true,
-    "environmentUrl": "https://company-prod.operations.dynamics.com",
-    "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
-    "clientId": "4a7f0521-8289-4bc2-8924-a2928509e51c",
+    "environmentUrl": "https://bpimr-test.sandbox.operations.dynamics.com",
+    "tenantId": "66d580b6-ca62-4359-be90-04b074f71e95",
+    "clientId": "58d3316a-b554-4e0e-8977-18f312579a05",
     "clientSecret": "MASUKKAN_CLIENT_SECRET_DARI_AZURE_DI_SINI",
     "entityName": "GeneralJournalAccountEntries",
     "syncIntervalMinutes": 15,

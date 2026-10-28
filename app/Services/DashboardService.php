@@ -2,15 +2,16 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
-    public function all(): array
+    public function all(?array $range = null): array
     {
-        $costMatrix = $this->costMatrix();
-        $production = $this->productionSummary();
-        $inventory = $this->inventoryValuation($costMatrix, $production);
+        $costMatrix = $this->costMatrix($range);
+        $production = $this->productionSummary($range);
+        $inventory = $this->inventoryValuation($costMatrix, $production, $range);
         $costPerMt = $this->costPerMt($costMatrix, $production);
 
         return [
@@ -18,9 +19,60 @@ class DashboardService
             'productionSummary' => $production,
             'inventoryValuation' => $inventory,
             'costPerMT' => $costPerMt,
-            'financialStatements' => $this->financialStatements($costMatrix, $inventory),
+            'financialStatements' => $this->financialStatements($costMatrix, $inventory, $range),
             'config' => $this->settings(),
+            'period' => $range !== null ? ['view' => $range['view'], 'year' => $range['year'], 'month' => $range['month'], 'label' => $this->periodLabel($range)] : $this->periodFallback(),
         ];
+    }
+
+    private function periodLabel(?array $range): string
+    {
+        if ($range === null) {
+            return 'Oktober 2026';
+        }
+        $label = $this->monthName((int) ($range['month'] ?? 1)).' '.($range['year'] ?? now()->year);
+
+        return ($range['view'] ?? 'mtd') === 'all' ? $label : $label.' ('.strtoupper((string) ($range['view'] ?? 'MTD')).')';
+    }
+
+    private function asOfLabel(?array $range): string
+    {
+        if ($range === null) {
+            return '27 Oktober 2026';
+        }
+        $end = filled($range['end'] ?? null) ? (string) $range['end'] : now()->format('Y-m-d');
+
+        return Carbon::parse($end)->day.' '.$this->monthName((int) Carbon::parse($end)->month).' '.Carbon::parse($end)->year;
+    }
+
+    /** Bentuk periode bila tanpa filter (kompatibilitas lama). */
+    private function periodFallback(): array
+    {
+        $config = $this->settings();
+        $year = (int) ($config['system']['periodYear'] ?? now()->year);
+        $month = (int) ($config['system']['periodMonth'] ?? now()->month);
+
+        return ['view' => 'all', 'year' => $year, 'month' => $month, 'label' => 'Semua Periode ('.$this->monthName($month).' '.$year.')'];
+    }
+
+    private function monthName(int $month): string
+    {
+        return ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][$month - 1] ?? '?';
+    }
+
+    /** Tambahkan kondisi tanggal (start <= kolom <= end|null) ke query. */
+    private function rangeQuery($query, ?array $range, string $column)
+    {
+        $start = $range['start'] ?? null;
+        if ($start !== null && $start !== '') {
+            $query->where($column, '>=', $start);
+            $end = $range['end'] ?? null;
+            if ($end !== null && $end !== '') {
+                $query->where($column, '<=', $end);
+            }
+        }
+
+        return $query;
     }
 
     public function settings(): array
@@ -69,10 +121,10 @@ class DashboardService
         );
     }
 
-    public function costMatrix(): array
+    public function costMatrix(?array $range = null): array
     {
         $definitions = DB::table('cost_matrix_definitions')->orderBy('id')->get();
-        $entries = DB::table('gl_entries')->get();
+        $entries = $this->rangeQuery(DB::table('gl_entries'), $range, 'entry_date')->get();
         $aggregate = [];
 
         foreach ($entries as $entry) {
@@ -208,9 +260,9 @@ class DashboardService
         return $row;
     }
 
-    public function productionSummary(): array
+    public function productionSummary(?array $range = null): array
     {
-        $tickets = DB::table('production_tickets')->orderBy('id')->get();
+        $tickets = $this->rangeQuery(DB::table('production_tickets')->orderBy('id'), $range, 'exit_date')->get();
         $kgPerMt = max(1, (float) ($this->settings()['dashboardSetup']['general']['kgPerMT'] ?? 1000));
         $totalGross = $totalTare = $totalNet = 0;
         $byProduct = $byWeighbridge = $daily = [];
@@ -265,7 +317,7 @@ class DashboardService
         ];
     }
 
-    public function inventoryValuation(?array $costReport = null, ?array $production = null): array
+    public function inventoryValuation(?array $costReport = null, ?array $production = null, ?array $range = null): array
     {
         $costReport ??= $this->costMatrix();
         $production ??= $this->productionSummary();
@@ -324,7 +376,7 @@ class DashboardService
         $endingValue = array_sum(array_column($stages, 'endingValueIDR'));
 
         return [
-            'valuationMethod' => 'Moving Average', 'period' => 'October 2026', 'stages' => $stages,
+            'valuationMethod' => 'Moving Average', 'period' => $this->periodLabel($range), 'stages' => $stages,
             'totalEndingQtyMT' => $endingQty, 'totalEndingValueIDR' => $endingValue,
             'overallAvgRateIDR' => $endingQty > 0 ? $endingValue / $endingQty : 0,
             'cogsShippedValIDR' => $port['outflowValueIDR'], 'cogsShippedQtyMT' => $port['outflowQtyMT'],
@@ -389,7 +441,7 @@ class DashboardService
         return ['totalVolumeProducedMT' => $total, 'grandTotalCost' => $gt['allCost'], 'overallCostPerMT' => ($gt['allCost'] * 1000) / $total, 'stages' => $stages, 'costByAccountGroup' => $costByAccountGroup];
     }
 
-    public function financialStatements(?array $costReport = null, ?array $inventory = null): array
+    public function financialStatements(?array $costReport = null, ?array $inventory = null, ?array $range = null): array
     {
         $costReport ??= $this->costMatrix();
         $inventory ??= $this->inventoryValuation($costReport);
@@ -415,7 +467,7 @@ class DashboardService
 
         return [
             'incomeStatement' => [
-                'period' => 'Oktober 2026 (MTD)', 'salesVolumeMT' => $salesVolume,
+                'period' => $this->periodLabel($range), 'salesVolumeMT' => $salesVolume,
                 'revenue' => ['coalSalesRevenue' => $revenue, 'totalRevenue' => $revenue],
                 'cogs' => ['productionCostAbsorbed' => $cogs, 'totalCOGS' => $cogs],
                 'grossProfit' => $grossProfit, 'grossProfitMarginPct' => ($grossProfit / max($revenue, 1)) * 100,
@@ -425,7 +477,7 @@ class DashboardService
                 'netProfitBeforeTax' => $netProfit, 'netProfitMarginPct' => ($netProfit / max($revenue, 1)) * 100,
             ],
             'balanceSheet' => [
-                'asOfDate' => '27 Oktober 2026',
+                'asOfDate' => $this->asOfLabel($range),
                 'assets' => ['currentAssets' => ['cashAndBank' => $setup['cashAndBank'], 'tradeReceivables' => $setup['tradeReceivables'], 'coalInventories' => ['totalInventory' => $inventoryValue], 'prepaidExpensesAndTaxes' => $setup['prepaidExpensesAndTaxes'], 'totalCurrentAssets' => $currentAssets], 'nonCurrentAssets' => ['fixedAssetsHeavyEquipment' => $setup['fixedAssetsHeavyEquipment'], 'miningPropertiesAndInfrastructure' => $setup['miningPropertiesAndInfrastructure'], 'accumulatedDepreciation' => $setup['accumulatedDepreciation'], 'totalNonCurrentAssets' => $nonCurrentAssets], 'totalAssets' => $currentAssets + $nonCurrentAssets],
                 'liabilities' => ['currentLiabilities' => ['tradePayablesVendors' => $setup['tradePayablesVendors'], 'accruedOperatingExpenses' => $setup['accruedOperatingExpenses'], 'shortTermLeaseObligations' => $setup['shortTermLeaseObligations'], 'totalCurrentLiabilities' => $currentLiabilities], 'nonCurrentLiabilities' => ['longTermLeaseFinancing' => $setup['longTermLeaseFinancing'], 'mineClosureProvisionARO' => $setup['mineClosureProvisionARO'], 'totalNonCurrentLiabilities' => $nonCurrentLiabilities], 'totalLiabilities' => $totalLiabilities],
                 'equity' => ['shareCapital' => $setup['shareCapital'], 'retainedEarnings' => $setup['retainedEarnings'], 'currentYearEarnings' => $netProfit, 'totalEquity' => $totalEquity],

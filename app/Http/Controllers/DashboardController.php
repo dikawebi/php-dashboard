@@ -2,28 +2,65 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\D365\D365SyncService;
 use App\Services\DashboardService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
-    public function __construct(private readonly DashboardService $dashboard) {}
+    public function __construct(
+        private readonly DashboardService $dashboard,
+        private readonly D365SyncService $d365,
+    ) {}
 
     public function index(Request $request): Response
     {
-        $data = $this->dashboard->all();
+        $period = $this->resolvePeriod($request);
+        $data = $this->dashboard->all($period['range']);
         $data['activeTab'] = $request->string('tab', 'overview')->toString();
         $data['search'] = $request->string('search')->toString();
         $data['hideZero'] = $request->boolean('hide_zero');
         $data['parentsOnly'] = $request->boolean('parents_only');
         $data['collapsed'] = $request->input('collapsed', []);
+        $data['d365Status'] = $this->d365->latestStatus();
+        $data['period'] = $period['meta'];
 
         return response()->view('dashboard', $data);
+    }
+
+    /**
+     * Kelola filter periode dari query string.
+     * view: mtd (1 s/d akhir bulan terpilih), ytd (1 Jan s/d akhir bulan terpilih), all.
+     * Default dari config (system.periodYear/periodMonth) atau bulan berjalan.
+     */
+    private function resolvePeriod(Request $request): array
+    {
+        $config = $this->dashboard->settings();
+        $year = (int) ($request->input('period_year') ?: ($config['system']['periodYear'] ?? now()->year));
+        $month = min(12, max(1, (int) ($request->input('period_month') ?: ($config['system']['periodMonth'] ?? now()->month))));
+        $view = in_array($request->input('period_view'), ['mtd', 'ytd', 'all'], true) ? (string) $request->input('period_view') : 'mtd';
+
+        $monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        $label = $monthNames[$month - 1].' '.$year;
+        $range = null;
+
+        if ($view === 'mtd') {
+            $range = ['view' => $view, 'year' => $year, 'month' => $month, 'start' => sprintf('%04d-%02d-01', $year, $month), 'end' => Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d')];
+            $label .= ' (MTD)';
+        } elseif ($view === 'ytd') {
+            $range = ['view' => $view, 'year' => $year, 'month' => $month, 'start' => sprintf('%04d-01-01', $year), 'end' => Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d')];
+            $label .= ' (YTD)';
+        } else {
+            $range = ['view' => 'all', 'year' => $year, 'month' => $month, 'start' => null, 'end' => null];
+        }
+
+        return ['view' => $view, 'year' => $year, 'month' => $month, 'label' => $label, 'range' => $range, 'meta' => ['view' => $view, 'year' => $year, 'month' => $month, 'label' => $label]];
     }
 
     public function saveInventory(Request $request): RedirectResponse
@@ -51,9 +88,10 @@ class DashboardController extends Controller
         return back()->with('success', 'Setup saldo awal persediaan berhasil disimpan.');
     }
 
-    public function exportMatrix(): Response|StreamedResponse
+    public function exportMatrix(Request $request): Response|StreamedResponse
     {
-        $matrix = $this->dashboard->costMatrix();
+        $period = $this->resolvePeriod($request);
+        $matrix = $this->dashboard->costMatrix($period['range']);
         $headers = ['AccountCode', 'AccountName', 'Cek', 'ALL Cost', 'Valuation Mining', 'Valuation Coal Hauling', 'Valuation Washing Plant', 'Valuation BP PORT', 'Costing Mining', 'Costing Coal Hauling', 'Costing Washing Plant', 'Costing BP PORT', 'Costing GA', 'Costing Selling Expense'];
         $rows = [$headers];
         foreach ($matrix['rows'] as $row) {
