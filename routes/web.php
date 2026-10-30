@@ -18,11 +18,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/inventory', [DashboardController::class, 'saveInventory'])->middleware('role:administrator,accountant,operations')->name('inventory.save');
     Route::post('/import-gl', [DashboardController::class, 'importGl'])->middleware('role:administrator,accountant')->name('gl.import');
     Route::post('/d365/sync', [D365SyncController::class, 'sync'])->middleware('role:administrator,accountant')->name('d365.sync');
+    Route::get('/d365/progress', [D365SyncController::class, 'progress'])->name('d365.progress');
     Route::get('/export-matrix', [DashboardController::class, 'exportMatrix'])->name('matrix.export');
 
-    // Browser data tampungan MSD D365
+    // Browser data tampungan MSD D365.
     Route::prefix('d365/data')->name('d365.data.')->group(function () {
         Route::get('/', [D365DataController::class, 'index'])->name('index');
+        Route::get('/staging', [D365DataController::class, 'staging'])->name('staging');
+        Route::get('/staging/export-xls', [D365DataController::class, 'exportStagingXls'])->name('staging.export_xls');
+        Route::get('/main-account-summary', [D365DataController::class, 'mainAccountSummary'])->name('main_account_summary');
         Route::get('/{entityKey}', [D365DataController::class, 'show'])->name('show');
     });
 });

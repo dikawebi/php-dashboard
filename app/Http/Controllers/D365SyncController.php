@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RunD365Sync;
 use App\Services\D365\D365SyncService;
 use App\Services\DashboardService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 
 class D365SyncController extends Controller
 {
@@ -15,29 +19,79 @@ class D365SyncController extends Controller
     ) {}
 
     /** Tombol "Tarik Data" di tab Integration. entity=all atau key entity. */
-    public function sync(Request $request): RedirectResponse
+    public function sync(Request $request): RedirectResponse|JsonResponse
     {
         if (! $this->sync->client()->enabled()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Konfigurasi D365 belum lengkap.'], 422);
+            }
+
             return back()->withErrors(['d365' => 'Konfigurasi D365 belum lengkap (secret/app registration). Lengkapi di halaman Setup Admin terlebih dulu.']);
         }
 
         $entityKey = $request->string('entity', 'all')->toString();
+        if ($entityKey !== 'all' && $this->sync->entityByKey($entityKey) === null) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Entity tidak dikenal: '.$entityKey], 422);
+            }
 
-        try {
-            $summary = $entityKey === 'all'
-                ? $this->sync->syncAll()
-                : [$this->sync->syncEntity($this->sync->entityByKey($entityKey) ?? throw new \InvalidArgumentException('Entity tidak dikenal: '.$entityKey))];
-
-            $lines = collect($summary)->map(static fn ($row) => sprintf(
-                '%s: %s baru, %s update, %s ditarik%s',
-                $row['entity']['key'], $row['inserted'] ?? 0, $row['updated'] ?? 0, $row['fetched'] ?? 0,
-                isset($row['error']) ? ' — gagal: '.$row['error'] : '',
-            ))->implode('; ');
-
-            return back()->with('success', 'Sync D365 selesai — '.$lines);
-        } catch (\Throwable $exception) {
-            return back()->withErrors(['d365' => 'Sync D365 gagal: '.$exception->getMessage()]);
+            return back()->withErrors(['d365' => 'Entity tidak dikenal: '.$entityKey]);
         }
+
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        if (filled($dateFrom) xor filled($dateTo)) {
+            return response()->json(['message' => 'date_from dan date_to harus diisi bersama.'], 422);
+        }
+
+        if ($entityKey === 'all') {
+            if (filled($dateFrom) && filled($dateTo)) {
+                $ordered = [
+                    'main_accounts', 'dimension_values', 'vendors', 'customers',
+                    'gl_journal_entries', 'ledger_journal_lines',
+                    'inventory_trans', 'gl_entries',
+                    'ledger_entry_journals',
+                ];
+                Bus::chain(array_map(
+                    fn (string $key) => new RunD365Sync($key, $dateFrom, $dateTo),
+                    $ordered,
+                ))->dispatch();
+            } else {
+                foreach (D365SyncService::ENTITIES as $entity) {
+                    RunD365Sync::dispatch($entity['key'], $dateFrom, $dateTo);
+                }
+            }
+        } else {
+            RunD365Sync::dispatch($entityKey, $dateFrom, $dateTo);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['queued' => true, 'entity' => $entityKey]);
+        }
+
+        return back()->with('success', 'Sync D365 dimasukkan ke antrean. Progress dapat dipantau pada tabel entity.');
+    }
+
+    public function progress(): JsonResponse
+    {
+        $rows = $this->sync->latestStatus()->map(static function (array $entity): array {
+            $last = $entity['last'];
+
+            return [
+                'key' => $entity['key'],
+                'status' => $last?->status ?? 'pending',
+                'fetched' => (int) ($last?->fetched ?? 0),
+                'total' => $last?->total !== null ? (int) $last->total : null,
+                'progress' => (int) ($last?->progress_percent ?? 0),
+                'message' => $last?->message,
+                'updated_at' => $last?->updated_at,
+            ];
+        })->values();
+
+        return response()->json([
+            'rows' => $rows,
+            'queued' => (int) DB::table('jobs')->count(),
+        ]);
     }
 
     /** Simpan kredensial & parameter D365 dari halaman Setup Admin. */

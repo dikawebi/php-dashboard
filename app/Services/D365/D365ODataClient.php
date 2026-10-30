@@ -108,7 +108,9 @@ class D365ODataClient
                 return;
             }
 
-            $query = ['$top' => (string) $top, '$skip' => (string) $offset];
+            // Beberapa entity (vendor/customer/invoice/inventory) hanya
+            // mengembalikan data lintas legal entity bila cross-company diaktifkan.
+            $query = ['cross-company' => 'true', '$top' => (string) $top, '$skip' => (string) $offset];
             if ($select !== null && count($select) > 0) {
                 $query['$select'] = implode(',', $select);
             }
@@ -145,16 +147,22 @@ class D365ODataClient
         }
     }
 
-    /** hitung jumlah record entity ($count=true) tanpa mengambil datanya. */
-    public function countEntity(string $entityName): int
+    /** Hitung jumlah record entity dengan filter yang sama seperti proses sync. */
+    public function countEntity(string $entityName, ?string $filter = null): ?int
     {
+        $query = ['cross-company' => 'true', '$count' => 'true', '$top' => '1'];
+        if (filled($filter)) {
+            $query['$filter'] = $filter;
+        }
         $response = Http::acceptJson()->timeout(120)->withToken($this->accessToken())
-            ->get(sprintf('%s/data/%s?$count=true&$top=1', $this->environmentUrl(), $entityName));
+            ->get(sprintf('%s/data/%s', $this->environmentUrl(), $entityName), $query);
 
         if ($response->failed()) {
             throw new D365Exception("COUNT {$entityName} gagal: HTTP ".$response->status());
         }
 
-        return (int) ($response->json('@odata.count') ?? count($response->json('value') ?? []));
+        $count = $response->json('@odata.count');
+
+        return is_numeric($count) ? (int) $count : null;
     }
 }

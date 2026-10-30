@@ -55,9 +55,7 @@ class DashboardPeriodAndD365FilterTest extends TestCase
         $this->assertSame('dataAreaId', $vendorEntity['dataAreaField']);
         $this->assertContains('VendorAccountNumber', $vendorEntity['select']);
 
-        $poEntity = $syncService->entityByKey('po_headers');
-        $this->assertNotNull($poEntity);
-        $this->assertSame('dataAreaId', $poEntity['dataAreaField']);
-        $this->assertContains('PurchaseOrderNumber', $poEntity['select']);
+        $this->assertNull($syncService->entityByKey('po_headers'));
+        $this->assertNull($syncService->entityByKey('po_lines'));
     }
 }

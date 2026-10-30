@@ -26,10 +26,10 @@ class D365SyncService
             'mode' => 'incremental', 'sourceKey' => 'SourceKey',
             'dataAreaField' => 'SubledgerVoucherDataAreaId',
             'select' => [
-                'SourceKey', 'SubledgerVoucherDataAreaId', 'GeneralJournalEntry', 'GeneralJournalAccountEntry',
-                'MainAccount', 'AccountName', 'AccountingDate', 'Voucher', 'JournalNumber',
+                'SourceKey', 'SubledgerVoucherDataAreaId', 'GeneralJournalEntry', 'MainAccount', 'LedgerAccount',
                 'TransactionCurrencyCode', 'AccountingCurrencyAmount', 'ReportingCurrencyAmount',
-                'PostingType', 'PostingLayer', 'Description', 'DimensionValues',
+                'TransactionCurrencyAmount', 'Quantity', 'ProjId_SA', 'PostingType', 'Text',
+                'LedgerDimension', 'LedgerDimensionValuesJson',
             ],
         ],
         [
@@ -37,20 +37,21 @@ class D365SyncService
             'entity' => 'GeneralJournalEntryBiEntities', 'table' => 'd365_gl_journal_entries',
             'mode' => 'incremental', 'sourceKey' => 'SourceKey',
             'dataAreaField' => 'SubledgerVoucherDataAreaId',
+            'dateField' => 'AccountingDate',
             'select' => [
-                'SourceKey', 'SubledgerVoucherDataAreaId', 'GeneralJournalEntry', 'JournalNumber',
-                'Voucher', 'AccountingDate', 'DocumentDate', 'JournalCategory', 'PostingLayer',
-                'FiscalCalendarYear', 'FiscalCalendarPeriod', 'Description',
+                'SourceKey', 'SubledgerVoucherDataAreaId', 'JournalNumber', 'SubledgerVoucher', 'DocumentNumber',
+                'AccountingDate', 'DocumentDate', 'JournalCategory', 'PostingLayer',
+                'FiscalCalendarYear', 'FiscalCalendarPeriod',
             ],
         ],
         [
             'key' => 'main_accounts', 'label' => 'Main Accounts (Chart of Accounts)',
-            'entity' => 'MainAccounts', 'table' => 'd365_main_accounts',
-            'mode' => 'snapshot', 'sourceKey' => 'MainAccountId',
+            'entity' => 'MainAccountBiEntities', 'table' => 'd365_main_accounts',
+            'mode' => 'snapshot', 'sourceKey' => 'SourceKey',
             'dataAreaField' => null, // Global Chart of Accounts (COA) shared across legal entities
             'select' => [
-                'MainAccountId', 'Name', 'Type', 'AccountCategoryDescription', 'ChartOfAccounts',
-                'CurrencyCode', 'ReportingType', 'DebitCreditProposal',
+                'SourceKey', 'MainAccountId', 'Name', 'Type', 'LedgerChartOfAccounts',
+                'CurrencyCode', 'ReportingAccountType', 'DebitCreditProposal',
             ],
         ],
         [
@@ -67,20 +68,22 @@ class D365SyncService
             'entity' => 'LedgerJournalTransBiEntities', 'table' => 'd365_ledger_journal_lines',
             'mode' => 'incremental', 'sourceKey' => 'SourceKey',
             'dataAreaField' => 'dataAreaId',
+            'dateField' => 'TransDate',
             'select' => [
-                'SourceKey', 'dataAreaId', 'JournalBatchNumber', 'LineNumber', 'Voucher',
-                'TransDate', 'AccountType', 'Account', 'AccountDisplayValue',
-                'AmountCurDebit', 'AmountCurCredit', 'Currency', 'Txt',
+                'SourceKey', 'dataAreaId', 'JournalNum', 'Voucher', 'DocumentDate', 'AccountType',
+                'AmountCurDebit', 'AmountCurCredit',
+                'CurrencyCode', 'Txt', 'Invoice', 'PaymReference', 'OffsetCompany',
             ],
         ],
         [
             'key' => 'ledger_entry_journals', 'label' => 'Ledger Entry Journals (Jurnal Aktif)',
             'entity' => 'LedgerEntryJournalBiEntities', 'table' => 'd365_ledger_entry_journals',
             'mode' => 'incremental', 'sourceKey' => 'SourceKey',
-            'dataAreaField' => 'dataAreaId',
+            // Field company dikembalikan kosong pada environment ini; jangan memfilter
+            // entity berdasarkan field tersebut agar jurnal aktif tidak hilang.
+            'dataAreaField' => null,
             'select' => [
-                'SourceKey', 'dataAreaId', 'JournalBatchNumber', 'JournalName', 'Description',
-                'JournalType', 'Posted', 'PostedDateTime', 'NumOfLines',
+                'SourceKey', 'LedgerJournalTableDataAreaId', 'JournalNumber',
             ],
         ],
         [
@@ -90,57 +93,17 @@ class D365SyncService
             'dataAreaField' => 'dataAreaId',
             'select' => [
                 'VendorAccountNumber', 'dataAreaId', 'VendorGroupId', 'VendorOrganizationName',
-                'AddressDescription', 'CurrencyCode', 'PaymentTerms', 'TaxGroup',
+                'AddressDescription', 'CurrencyCode', 'SalesTaxGroupCode',
             ],
         ],
         [
             'key' => 'customers', 'label' => 'Customers (Master Customer)',
             'entity' => 'CustomersV3', 'table' => 'd365_customers',
-            'mode' => 'snapshot', 'sourceKey' => 'CustomerAccountNumber',
+            'mode' => 'snapshot', 'sourceKey' => 'CustomerAccount',
             'dataAreaField' => 'dataAreaId',
             'select' => [
-                'CustomerAccountNumber', 'dataAreaId', 'CustomerGroupId', 'OrganizationName',
-                'AddressDescription', 'CurrencyCode', 'PaymentTerms', 'SalesCurrencyCode',
-            ],
-        ],
-        [
-            'key' => 'po_headers', 'label' => 'Purchase Order Headers',
-            'entity' => 'PurchaseOrderHeadersV2', 'table' => 'd365_po_headers',
-            'mode' => 'snapshot', 'sourceKey' => 'PurchaseOrderNumber',
-            'dataAreaField' => 'dataAreaId',
-            'select' => [
-                'PurchaseOrderNumber', 'dataAreaId', 'PurchaseOrderName', 'OrderVendorAccountNumber',
-                'PurchaseOrderStatus', 'AccountingDate', 'CurrencyCode', 'PaymentTermsName',
-            ],
-        ],
-        [
-            'key' => 'po_lines', 'label' => 'Purchase Order Lines',
-            'entity' => 'PurchaseOrderLinesV2', 'table' => 'd365_po_lines',
-            'mode' => 'snapshot', 'sourceKey' => ['PurchaseOrderNumber', 'LineNumber'],
-            'dataAreaField' => 'dataAreaId',
-            'select' => [
-                'PurchaseOrderNumber', 'LineNumber', 'dataAreaId', 'ItemNumber', 'LineDescription',
-                'OrderedPurchaseQuantity', 'PurchaseUnitSymbol', 'PurchasePrice', 'LineAmount',
-            ],
-        ],
-        [
-            'key' => 'vendor_invoices', 'label' => 'Vendor Invoice Headers',
-            'entity' => 'VendorInvoiceHeaders', 'table' => 'd365_vendor_invoices',
-            'mode' => 'snapshot', 'sourceKey' => 'Invoice',
-            'dataAreaField' => 'dataAreaId',
-            'select' => [
-                'Invoice', 'dataAreaId', 'VendorInvoiceNumber', 'InvoiceAccount', 'InvoiceDate',
-                'DueDate', 'InvoiceAmount', 'Currency', 'Description',
-            ],
-        ],
-        [
-            'key' => 'vendor_invoice_lines', 'label' => 'Vendor Invoice Lines',
-            'entity' => 'VendorInvoiceLines', 'table' => 'd365_vendor_invoice_lines',
-            'mode' => 'snapshot', 'sourceKey' => ['Invoice', 'InvoiceLine'],
-            'dataAreaField' => 'dataAreaId',
-            'select' => [
-                'Invoice', 'InvoiceLine', 'dataAreaId', 'ItemNumber', 'LineDescription',
-                'Quantity', 'Unit', 'UnitPrice', 'LineAmount', 'MainAccountId',
+                'CustomerAccount', 'dataAreaId', 'CustomerGroupId', 'OrganizationName',
+                'AddressDescription', 'SalesTaxGroup',
             ],
         ],
         [
@@ -148,9 +111,10 @@ class D365SyncService
             'entity' => 'InventTransBiEntities', 'table' => 'd365_inventory_trans',
             'mode' => 'incremental', 'sourceKey' => 'SourceKey',
             'dataAreaField' => 'dataAreaId',
+            'dateField' => 'DateFinancial',
             'select' => [
-                'SourceKey', 'dataAreaId', 'ItemId', 'InventSiteId', 'InventLocationId',
-                'StatusReceipt', 'StatusIssue', 'Qty', 'CostAmountPosted', 'CostAmountAdjustment',
+                'SourceKey', 'dataAreaId', 'ItemId', 'inventDimId', 'StatusReceipt', 'StatusIssue',
+                'Qty', 'CostAmountPosted', 'CostAmountAdjustment',
                 'CostAmountPhysical', 'DatePhysical', 'DateFinancial', 'Voucher',
             ],
         ],
@@ -164,37 +128,33 @@ class D365SyncService
         'gl_entries' => [
             'table' => 'd365s_gl_entries',
             'map' => [
-                'SubledgerVoucherDataAreaId' => 'company',
                 'GeneralJournalEntry'        => 'general_journal_entry',
-                'GeneralJournalAccountEntry' => 'general_journal_account_entry',
                 'MainAccount'               => 'main_account',
-                'AccountName'               => 'account_name',
-                'AccountingDate'            => 'accounting_date',
-                'Voucher'                   => 'voucher',
-                'JournalNumber'             => 'journal_number',
+                'LedgerAccount'             => 'ledger_account',
                 'TransactionCurrencyCode'   => 'currency_code',
                 'AccountingCurrencyAmount'  => 'accounting_currency_amount',
                 'ReportingCurrencyAmount'   => 'reporting_currency_amount',
+                'TransactionCurrencyAmount' => 'transaction_currency_amount',
+                'Quantity'                  => 'quantity',
+                'ProjId_SA'                 => 'project_id',
                 'PostingType'               => 'posting_type',
-                'PostingLayer'              => 'posting_layer',
-                'Description'               => 'description',
-                'DimensionValues'           => 'dimension_values',
+                'Text'                      => 'description',
+                'LedgerDimensionValuesJson' => 'dimension_values',
             ],
         ],
         'gl_journal_entries' => [
             'table' => 'd365s_gl_journal_entries',
             'map' => [
                 'SubledgerVoucherDataAreaId' => 'company',
-                'GeneralJournalEntry'        => 'general_journal_entry',
                 'JournalNumber'              => 'journal_number',
-                'Voucher'                    => 'voucher',
+                'SubledgerVoucher'           => 'voucher',
+                'DocumentNumber'             => 'document_number',
                 'AccountingDate'             => 'accounting_date',
                 'DocumentDate'               => 'document_date',
                 'JournalCategory'            => 'journal_category',
                 'PostingLayer'               => 'posting_layer',
                 'FiscalCalendarYear'         => 'fiscal_calendar_year',
                 'FiscalCalendarPeriod'       => 'fiscal_calendar_period',
-                'Description'                => 'description',
             ],
         ],
         'main_accounts' => [
@@ -203,10 +163,9 @@ class D365SyncService
                 'MainAccountId'              => 'main_account_id',
                 'Name'                       => 'name',
                 'Type'                       => 'type',
-                'AccountCategoryDescription' => 'account_category_description',
-                'ChartOfAccounts'            => 'chart_of_accounts',
+                'LedgerChartOfAccounts'      => 'chart_of_accounts',
                 'CurrencyCode'               => 'currency_code',
-                'ReportingType'              => 'reporting_type',
+                'ReportingAccountType'       => 'reporting_type',
                 'DebitCreditProposal'        => 'debit_credit_proposal',
             ],
         ],
@@ -225,30 +184,21 @@ class D365SyncService
             'table' => 'd365s_ledger_journal_lines',
             'map' => [
                 'dataAreaId'          => 'company',
-                'JournalBatchNumber'  => 'journal_batch_number',
-                'LineNumber'          => 'line_number',
+                'JournalNum'          => 'journal_batch_number',
                 'Voucher'             => 'voucher',
-                'TransDate'           => 'trans_date',
+                'DocumentDate'        => 'trans_date',
                 'AccountType'         => 'account_type',
-                'Account'             => 'account',
-                'AccountDisplayValue' => 'account_display_value',
                 'AmountCurDebit'      => 'amount_cur_debit',
                 'AmountCurCredit'     => 'amount_cur_credit',
-                'Currency'            => 'currency',
+                'CurrencyCode'        => 'currency',
                 'Txt'                 => 'txt',
             ],
         ],
         'ledger_entry_journals' => [
             'table' => 'd365s_ledger_entry_journals',
             'map' => [
-                'dataAreaId'         => 'company',
-                'JournalBatchNumber' => 'journal_batch_number',
-                'JournalName'        => 'journal_name',
-                'Description'        => 'description',
-                'JournalType'        => 'journal_type',
-                'Posted'             => 'posted',
-                'PostedDateTime'     => 'posted_datetime',
-                'NumOfLines'         => 'num_of_lines',
+                'LedgerJournalTableDataAreaId' => 'company',
+                'JournalNumber'      => 'journal_batch_number',
             ],
         ],
         'vendors' => [
@@ -260,77 +210,17 @@ class D365SyncService
                 'VendorOrganizationName' => 'vendor_organization_name',
                 'AddressDescription'     => 'address_description',
                 'CurrencyCode'           => 'currency_code',
-                'PaymentTerms'           => 'payment_terms',
-                'TaxGroup'               => 'tax_group',
+                'SalesTaxGroupCode'      => 'tax_group',
             ],
         ],
         'customers' => [
             'table' => 'd365s_customers',
             'map' => [
                 'dataAreaId'            => 'company',
-                'CustomerAccountNumber' => 'customer_account_number',
+                'CustomerAccount'       => 'customer_account_number',
                 'CustomerGroupId'       => 'customer_group_id',
                 'OrganizationName'      => 'organization_name',
                 'AddressDescription'    => 'address_description',
-                'CurrencyCode'          => 'currency_code',
-                'PaymentTerms'          => 'payment_terms',
-                'SalesCurrencyCode'     => 'sales_currency_code',
-            ],
-        ],
-        'po_headers' => [
-            'table' => 'd365s_po_headers',
-            'map' => [
-                'dataAreaId'               => 'company',
-                'PurchaseOrderNumber'      => 'purchase_order_number',
-                'PurchaseOrderName'        => 'purchase_order_name',
-                'OrderVendorAccountNumber' => 'order_vendor_account_number',
-                'PurchaseOrderStatus'      => 'purchase_order_status',
-                'AccountingDate'           => 'accounting_date',
-                'CurrencyCode'             => 'currency_code',
-                'PaymentTermsName'         => 'payment_terms_name',
-            ],
-        ],
-        'po_lines' => [
-            'table' => 'd365s_po_lines',
-            'map' => [
-                'dataAreaId'              => 'company',
-                'PurchaseOrderNumber'     => 'purchase_order_number',
-                'LineNumber'              => 'line_number',
-                'ItemNumber'              => 'item_number',
-                'LineDescription'         => 'line_description',
-                'OrderedPurchaseQuantity' => 'ordered_purchase_quantity',
-                'PurchaseUnitSymbol'      => 'purchase_unit_symbol',
-                'PurchasePrice'           => 'purchase_price',
-                'LineAmount'              => 'line_amount',
-            ],
-        ],
-        'vendor_invoices' => [
-            'table' => 'd365s_vendor_invoices',
-            'map' => [
-                'dataAreaId'          => 'company',
-                'Invoice'             => 'invoice',
-                'VendorInvoiceNumber' => 'vendor_invoice_number',
-                'InvoiceAccount'      => 'invoice_account',
-                'InvoiceDate'         => 'invoice_date',
-                'DueDate'             => 'due_date',
-                'InvoiceAmount'       => 'invoice_amount',
-                'Currency'            => 'currency',
-                'Description'         => 'description',
-            ],
-        ],
-        'vendor_invoice_lines' => [
-            'table' => 'd365s_vendor_invoice_lines',
-            'map' => [
-                'dataAreaId'      => 'company',
-                'Invoice'         => 'invoice',
-                'InvoiceLine'     => 'invoice_line',
-                'ItemNumber'      => 'item_number',
-                'LineDescription' => 'line_description',
-                'Quantity'        => 'quantity',
-                'Unit'            => 'unit',
-                'UnitPrice'       => 'unit_price',
-                'LineAmount'      => 'line_amount',
-                'MainAccountId'   => 'main_account_id',
             ],
         ],
         'inventory_trans' => [
@@ -338,8 +228,6 @@ class D365SyncService
             'map' => [
                 'dataAreaId'           => 'company',
                 'ItemId'               => 'item_id',
-                'InventSiteId'         => 'invent_site_id',
-                'InventLocationId'     => 'invent_location_id',
                 'StatusReceipt'        => 'status_receipt',
                 'StatusIssue'          => 'status_issue',
                 'Qty'                  => 'qty',
@@ -354,12 +242,19 @@ class D365SyncService
     ];
 
     /** Ukuran halaman OData per pull. */
-    private const PAGE_SIZE = 2000;
+    private const PAGE_SIZE = 1000;
 
     /** Batas pengaman jumlah halaman per sync per entity. */
     private const MAX_PAGES = 2000;
 
-    public function __construct(private readonly DashboardService $dashboard) {}
+    public function __construct(private readonly DashboardService $dashboard)
+    {
+        // OData GL dapat membawa payload besar; naikkan batas CLI worker
+        // tanpa mengubah konfigurasi PHP global/server web.
+        if (PHP_SAPI === 'cli') {
+            ini_set('memory_limit', '512M');
+        }
+    }
 
     public function client(): D365ODataClient
     {
@@ -372,18 +267,23 @@ class D365SyncService
     }
 
     /** Jalankan sync untuk satu entity; kembalikan ringkasan hasilnya. */
-    public function syncEntity(array $entity): array
+    public function syncEntity(array $entity, ?int $limit = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
-        $logId = $this->openLog($entity);
+        $limit = $limit !== null ? max(1, $limit) : null;
+        $parentKeys = $this->parentKeysFor($entity['key'], $dateFrom, $dateTo);
+        if ($parentKeys !== null) {
+            return $this->syncByParentKeys($entity, $parentKeys, $limit, $dateFrom, $dateTo);
+        }
+        $logId = $this->openLog($entity, $limit ?? $this->estimateTotal($entity, $dateFrom, $dateTo));
 
         try {
             $sourceKeyField = $entity['sourceKey'];
             $isScalarKey = is_string($sourceKeyField);
             $result = match ($entity['mode']) {
-                'incremental' => $this->pullIncremental($entity, $logId),
+                'incremental' => $this->pullIncremental($entity, $logId, $limit, $dateFrom, $dateTo),
                 'snapshot' => $isScalarKey
-                    ? $this->pullSnapshot($entity, [$sourceKeyField], $logId)
-                    : $this->pullSnapshot($entity, $sourceKeyField, $logId),
+                    ? $this->pullSnapshot($entity, [$sourceKeyField], $logId, $limit, $dateFrom, $dateTo)
+                    : $this->pullSnapshot($entity, $sourceKeyField, $logId, $limit, $dateFrom, $dateTo),
                 default => throw new D365Exception("Mode sync tidak dikenal: {$entity['mode']}"),
             };
 
@@ -400,13 +300,76 @@ class D365SyncService
         }
     }
 
+    /** Parent keys untuk child entity pada sync periode terbatas. */
+    private function parentKeysFor(string $entityKey, ?string $dateFrom, ?string $dateTo): ?array
+    {
+        if (! filled($dateFrom) || ! filled($dateTo)) {
+            return null;
+        }
+
+        return match ($entityKey) {
+            'gl_entries' => DB::table('d365s_gl_journal_entries')->whereBetween('accounting_date', [$dateFrom, date('Y-m-d', strtotime($dateTo.' -1 day'))])->pluck('source_key')->map(fn ($v) => (string) $v)->all(),
+            'ledger_entry_journals' => DB::table('d365s_ledger_journal_lines')->whereBetween('trans_date', [$dateFrom, date('Y-m-d', strtotime($dateTo.' -1 day'))])->pluck('journal_batch_number')->filter()->map(fn ($v) => (string) $v)->unique()->values()->all(),
+            default => null,
+        };
+    }
+
+    /** Tarik child entity memakai OR filter berbasis key parent. */
+    private function syncByParentKeys(array $entity, array $parentKeys, ?int $limit, ?string $dateFrom, ?string $dateTo): array
+    {
+        $logId = $this->openLog($entity, null);
+        $parentField = match ($entity['key']) {
+            'gl_entries' => 'GeneralJournalEntry',
+            'ledger_entry_journals' => 'JournalNumber',
+            default => throw new D365Exception('Parent filter tidak dikonfigurasi untuk '.$entity['key']),
+        };
+        $rawBuffer = [];
+        $typedBuffer = [];
+        $fetched = 0;
+        $inserted = 0;
+        $updated = 0;
+        $pages = 0;
+        $typedMeta = self::TYPED_TABLE_MAP[$entity['key']] ?? null;
+        if ($entity['mode'] === 'snapshot') {
+            DB::table($entity['table'])->delete();
+            if ($typedMeta) DB::table($typedMeta['table'])->delete();
+        }
+
+        foreach (array_chunk($parentKeys, 50) as $chunk) {
+            $clauses = array_map(function ($value) use ($parentField): string {
+                $value = (string) $value;
+                return is_numeric($value) ? $parentField.' eq '.$value : $parentField." eq '".str_replace("'", "''", $value)."'";
+            }, $chunk);
+            $filter = $this->buildEntityFilter($entity, '('.implode(' or ', $clauses).')');
+            foreach ($this->client()->streamEntity($entity['entity'], $entity['select'], $filter, $entity['mode'] === 'incremental' ? 'SourceKey asc' : null, self::PAGE_SIZE, self::MAX_PAGES) as $row) {
+                $staging = $this->toStaging($row, is_array($entity['sourceKey']) ? $entity['sourceKey'] : [$entity['sourceKey']]);
+                $rawBuffer[] = $staging;
+                if ($typedMeta) $typedBuffer[] = $this->toTyped($row, $typedMeta['map'], $staging['source_key']);
+                $fetched++;
+                if ($limit !== null && $fetched >= $limit) break 2;
+            }
+            if (count($rawBuffer) > 0) {
+                $stored = $this->flushBothUpsert($entity, $rawBuffer, $typedBuffer);
+                $inserted += $stored['inserted']; $updated += $stored['updated']; $rawBuffer = []; $typedBuffer = []; $pages++;
+                $this->touchProgress($logId, $pages, $fetched, $inserted, $updated);
+            }
+        }
+        if (count($rawBuffer) > 0) {
+            $stored = $this->flushBothUpsert($entity, $rawBuffer, $typedBuffer);
+            $inserted += $stored['inserted']; $updated += $stored['updated']; $pages++;
+        }
+        $result = ['fetched' => $fetched, 'inserted' => $inserted, 'updated' => $updated, 'pages' => $pages, 'maxSourceKey' => null];
+        $this->closeLog($logId, 'success', $result);
+        return ['entity' => $entity, 'status' => 'success'] + $result;
+    }
+
     /** Sync semua entity; kembalikan daftar ringkasan per entity. */
-    public function syncAll(): array
+    public function syncAll(?int $limit = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $results = [];
         foreach (self::ENTITIES as $entity) {
             try {
-                $results[] = $this->syncEntity($entity);
+                $results[] = $this->syncEntity($entity, $limit, $dateFrom, $dateTo);
             } catch (\Throwable $exception) {
                 $entityTable = $entity['table'];
                 $results[] = [
@@ -423,18 +386,29 @@ class D365SyncService
     /** Target legal entity / company ID untuk filter OData. */
     public const DEFAULT_COMPANY = 'BP';
 
-    private function buildEntityFilter(array $entity, ?string $additionalFilter = null): ?string
+    private function buildEntityFilter(array $entity, ?string $additionalFilter = null, ?string $dateFrom = null, ?string $dateTo = null): ?string
     {
         $parts = [];
 
         $companyField = $entity['dataAreaField'] ?? null;
-        if (filled($companyField)) {
-            $company = $this->targetCompany();
+        if ($entity['key'] === 'dimension_values') {
+            // Financial dimensions are shared/global as well as legal-entity-specific.
+            // Keep every company except ARCS; blank LegalEntityId rows are retained.
+            $parts[] = "LegalEntityId ne 'arcs'";
+        } elseif (filled($companyField)) {
+            // F&O returns legal-entity identifiers in lowercase (for example `bp`)
+            // even when the admin setting is entered as `BP`.
+            $company = strtolower($this->targetCompany());
             $parts[] = sprintf("%s eq '%s'", $companyField, $company);
         }
 
         if (filled($additionalFilter)) {
             $parts[] = "({$additionalFilter})";
+        }
+
+        if (filled($dateFrom) && filled($dateTo) && filled($entity['dateField'] ?? null)) {
+            $dateField = $entity['dateField'];
+            $parts[] = sprintf("%s ge %sT00:00:00Z and %s lt %sT00:00:00Z", $dateField, $dateFrom, $dateField, $dateTo);
         }
 
         if (count($parts) === 0) {
@@ -451,27 +425,28 @@ class D365SyncService
         return (string) data_get($settings, 'd365Config.company', self::DEFAULT_COMPANY);
     }
 
-    private function pullIncremental(array $entity, int $logId): array
+    private function pullIncremental(array $entity, int $logId, ?int $limit = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $field = (string) $entity['sourceKey'];
         $cursor = $this->lastMaxKey($entity);
         $incrementalFilter = $cursor !== null ? sprintf('%s gt %s', $field, $cursor) : null;
-        $filter = $this->buildEntityFilter($entity, $incrementalFilter);
+        $filter = $this->buildEntityFilter($entity, $incrementalFilter, $dateFrom, $dateTo);
 
-        return $this->pullRows($entity, $field, $filter, $logId);
+        return $this->pullRows($entity, $field, $filter, $logId, $limit);
     }
 
-    private function pullSnapshot(array $entity, array $keyFields, int $logId): array
+    private function pullSnapshot(array $entity, array $keyFields, int $logId, ?int $limit = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $client = $this->client();
         $rawRows = [];
         $typedRows = [];
         $pages = 0;
-        $filter = $this->buildEntityFilter($entity);
+        $filter = $this->buildEntityFilter($entity, null, $dateFrom, $dateTo);
         $select = $entity['select'] ?? null;
         $typedMeta = self::TYPED_TABLE_MAP[$entity['key']] ?? null;
 
-        foreach ($client->streamEntity($entity['entity'], select: $select, filter: $filter, top: self::PAGE_SIZE, maxPages: self::MAX_PAGES) as $row) {
+        $top = $limit !== null ? min(self::PAGE_SIZE, $limit) : self::PAGE_SIZE;
+        foreach ($client->streamEntity($entity['entity'], select: $select, filter: $filter, top: $top, maxPages: self::MAX_PAGES) as $row) {
             $staging = $this->toStaging($row, $keyFields);
             $rawRows[] = $staging;
             if ($typedMeta !== null) {
@@ -479,6 +454,10 @@ class D365SyncService
             }
             if (count($rawRows) >= self::PAGE_SIZE) {
                 $pages++;
+                $this->touchProgress($logId, $pages, count($rawRows), 0, 0);
+            }
+            if ($limit !== null && count($rawRows) >= $limit) {
+                break;
             }
         }
 
@@ -502,7 +481,7 @@ class D365SyncService
         ];
     }
 
-    private function pullRows(array $entity, string $field, ?string $filter, int $logId): array
+    private function pullRows(array $entity, string $field, ?string $filter, int $logId, ?int $limit = null): array
     {
         $client = $this->client();
         $fetched = 0;
@@ -515,7 +494,8 @@ class D365SyncService
         $select = $entity['select'] ?? null;
         $typedMeta = self::TYPED_TABLE_MAP[$entity['key']] ?? null;
 
-        foreach ($client->streamEntity($entity['entity'], select: $select, filter: $filter, orderBy: $field.' asc', top: self::PAGE_SIZE, maxPages: self::MAX_PAGES) as $row) {
+        $top = $limit !== null ? min(self::PAGE_SIZE, $limit) : self::PAGE_SIZE;
+        foreach ($client->streamEntity($entity['entity'], select: $select, filter: $filter, orderBy: $field.' asc', top: $top, maxPages: self::MAX_PAGES) as $row) {
             $staging = $this->toStaging($row, [$field]);
             $rawBuffer[] = $staging;
             if ($typedMeta !== null) {
@@ -535,6 +515,10 @@ class D365SyncService
                 $rawBuffer = [];
                 $typedBuffer = [];
                 $pages++;
+                $this->touchProgress($logId, $pages, $fetched, $insertedCount, $updatedCount);
+            }
+            if ($limit !== null && $fetched >= $limit) {
+                break;
             }
         }
 
@@ -543,6 +527,7 @@ class D365SyncService
             $insertedCount += $stored['inserted'];
             $updatedCount += $stored['updated'];
             $pages++;
+            $this->touchProgress($logId, $pages, $fetched, $insertedCount, $updatedCount);
         }
 
         if ($maxKey !== null) {
@@ -592,6 +577,9 @@ class D365SyncService
             }
             if (is_string($value) && $value === '') {
                 $value = null;
+            }
+            if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $value) === 1) {
+                $value = str_ends_with($dbColumn, '_datetime') ? substr($value, 0, 19) : substr($value, 0, 10);
             }
             $typed[$dbColumn] = $value;
         }
@@ -678,11 +666,53 @@ class D365SyncService
         return $last !== null && ctype_digit($last) ? $last : null;
     }
 
-    private function openLog(array $entity): int
+    private function estimateTotal(array $entity, ?string $dateFrom = null, ?string $dateTo = null): ?int
+    {
+        try {
+            $filter = null;
+            if ($entity['mode'] === 'incremental') {
+                $cursor = $this->lastMaxKey($entity);
+                $filter = $this->buildEntityFilter($entity, $cursor !== null
+                    ? sprintf('%s gt %s', $entity['sourceKey'], $cursor)
+                    : null, $dateFrom, $dateTo);
+            } else {
+                $filter = $this->buildEntityFilter($entity, null, $dateFrom, $dateTo);
+            }
+
+            $total = $this->client()->countEntity($entity['entity'], $filter);
+            if ($total !== null) {
+                return $total;
+            }
+
+            // Jangan melakukan scan penuh hanya untuk menghitung total. Pada
+            // entity besar, fallback ini membuat job tertahan sebelum progress
+            // log dibuat. Progress tetap menampilkan jumlah fetched dengan total
+            // null sampai endpoint menyediakan @odata.count.
+            return null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function openLog(array $entity, ?int $total = null): int
     {
         return (int) DB::table('d365_sync_log')->insertGetId([
             'entity_key' => $entity['key'], 'entity_name' => $entity['entity'],
             'status' => 'running', 'created_at' => now(), 'updated_at' => now(),
+            'total' => $total, 'progress_percent' => 0,
+        ]);
+    }
+
+    private function touchProgress(int $logId, int $pages, int $fetched, int $inserted, int $updated): void
+    {
+        $total = DB::table('d365_sync_log')->where('id', $logId)->value('total');
+        $percent = $total !== null && (int) $total > 0
+            ? min(99, (int) floor(($fetched / (int) $total) * 100))
+            : 0;
+
+        DB::table('d365_sync_log')->where('id', $logId)->where('status', 'running')->update([
+            'pages' => $pages, 'fetched' => $fetched, 'inserted' => $inserted,
+            'updated' => $updated, 'progress_percent' => $percent, 'updated_at' => now(),
         ]);
     }
 
@@ -699,11 +729,12 @@ class D365SyncService
     private function closeLog(int $logId, string $status, array $result, ?string $message = null): void
     {
         DB::table('d365_sync_log')->where('id', $logId)->update([
-            'status' => $status, 'message' => $message,
+            'status' => $status, 'message' => $message !== null ? mb_substr($message, 0, 60000) : null,
             'fetched' => (int) ($result['fetched'] ?? 0),
             'inserted' => (int) ($result['inserted'] ?? 0),
             'updated' => (int) ($result['updated'] ?? 0),
             'pages' => (int) ($result['pages'] ?? 0),
+            'progress_percent' => $status === 'success' ? 100 : (int) ($result['progressPercent'] ?? 0),
             'max_source_key' => $result['maxSourceKey'] ?? null,
             'updated_at' => now(),
         ]);

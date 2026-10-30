@@ -12,6 +12,7 @@ class D365Sync extends Command
 {
     protected $signature = 'd365:sync
         {--entity=all : Key entity tunggal, atau "all" untuk semua entity}
+        {--limit= : Batasi jumlah record per entity untuk proofing}
         {--scheduled : Dipanggil scheduler — patuhi interval & autoSync}';
 
     protected $description = 'Tarik data dari data entity OData D365 ke tabel staging MySQL';
@@ -44,8 +45,9 @@ class D365Sync extends Command
         }
 
         $entityKey = (string) $this->option('entity');
+        $limit = $this->option('limit') !== null ? max(1, (int) $this->option('limit')) : null;
         $entity = $entityKey !== 'all' ? ($sync->entityByKey($entityKey) ?? throw new \InvalidArgumentException("Entity tidak dikenal: {$entityKey}")) : null;
-        $summary = $entity !== null ? [$sync->syncEntity($entity)] : $sync->syncAll();
+        $summary = $entity !== null ? [$sync->syncEntity($entity, $limit)] : $sync->syncAll($limit);
 
         foreach ($summary as $row) {
             $line = sprintf(

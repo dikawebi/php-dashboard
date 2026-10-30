@@ -77,8 +77,9 @@
 
     <section class="tab-pane {{ $activeTab === 'integration' ? 'active' : '' }}">
         <div class="section-header"><div class="section-title"><h2>Pusat Integrasi & Sumber Data</h2><p>Konfigurasi konektor D365 dan Google Sheets</p></div></div>
-        <div class="grid-2"><div class="card"><div class="card-title">Microsoft Dynamics 365 OData Connector <span class="sync-badge">{{ ($config['d365Config']['environmentUrl'] ?? '') !== '' ? 'Terhubung' : 'Konfigurasi' }}</span></div><p>Menarik data dari data entity OData D365 ke tabel staging MySQL, incremental berdasarkan kursor SourceKey.</p><div class="integration-details"><div><strong>Environment URL:</strong> <code>{{ $config['d365Config']['environmentUrl'] ?? '-' }}</code></div><div><strong>Interval Sync:</strong> {{ $config['d365Config']['syncIntervalMinutes'] ?? 15 }} menit {{ ($config['d365Config']['autoSync'] ?? false) ? '(otomatis aktif)' : '(manual)' }}</div><div><strong>Sinkronisasi Terakhir:</strong> {{ $config['system']['lastSyncD365'] ?? '-' }}</div></div></div><div class="card"><div class="card-title">Google Sheets Weighbridge Connector <span class="sync-badge">Data Lokal</span></div><p>Membaca data penimbangan dan mengonversi NETTO menjadi Metric Ton.</p><div class="integration-details"><div><strong>Spreadsheet ID:</strong> <code>{{ $config['sheetsConfig']['spreadsheetId'] ?? '-' }}</code></div><div><strong>Sheet Tab:</strong> <code>{{ $config['sheetsConfig']['sheetName'] ?? '-' }}</code></div><div><strong>Formula MT:</strong> <code>NETTO / 1000</code></div><div><strong>Sinkronisasi Terakhir:</strong> {{ $config['system']['lastSyncSheets'] ?? '-' }}</div></div></div></div>
-        @if ($canImportGl)<div class="table-card" id="d365-sync"><div class="table-heading">Sinkronisasi Data Entity D365</div><form action="{{ route('d365.sync') }}" method="post" class="upload-form">@csrf<input type="hidden" name="entity" value="all"><button class="btn btn-primary">🔄 Tarik Semua Entity</button></form><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Data Entity (Server)</th><th>Mode</th><th>Baris Staging</th><th>Status Sinkron Terakhir</th><th>Kursor</th><th></th></tr></thead><tbody>@foreach ($d365Status as $entity)<tr><td><strong>{{ $entity['label'] }}</strong><br><code>{{ $entity['entity'] }}</code></td><td>{{ $entity['mode'] === 'incremental' ? 'Incremental' : 'Snapshot' }}</td><td class="num">{{ number_format($entity['staging_count'] ?? 0, 0, ',', '.') }}</td><td>@if ($entity['last']){{ $entity['last']->status === 'success' ? '✅' : ($entity['last']->status === 'failed' ? '❌' : '⏳') }} {{ $entity['last']->status }}<br><small>{{ $entity['last']->updated_at }} — {{ $entity['last']->fetched }} baris</small>@if ($entity['last']->message)<br><small style="color:#b3261e">{{ $entity['last']->message }}</small>@endif@else<span>Belum pernah sync</span>@endif</td><td><code>{{ $entity['last']->max_source_key ?? '-' }}</code></td><td><form action="{{ route('d365.sync') }}" method="post">@csrf<input type="hidden" name="entity" value="{{ $entity['key'] }}"><button class="btn btn-outline">Tarik</button></form></td></tr>@endforeach</tbody></table></div><small>Master data (vendor, customer, PO, invoice, inventory) ditarik mode snapshot karena environment sandbox belum menyimpan datanya; tabel tetap terisi otomatis begitu data tersedia.</small></div>@endif
+        <div class="table-card" id="d365-live-progress" hidden><div class="table-heading">Progress Sinkronisasi Live</div><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Entity</th><th>Status</th><th>Progress</th><th>Data</th></tr></thead><tbody id="d365-progress-body"></tbody></table></div><small id="d365-progress-note">Menunggu worker queue memproses sync.</small></div>
+        <div class="grid-2"><div class="card"><div class="card-title">Microsoft Dynamics 365 OData Connector <span class="sync-badge">{{ ($config['d365Config']['environmentUrl'] ?? '') !== '' ? 'Terhubung' : 'Konfigurasi' }}</span></div><p>Menarik data dari data entity OData D365 ke tabel staging MySQL, incremental berdasarkan kursor SourceKey.</p><div class="integration-details"><div><strong>Environment URL:</strong> <code>{{ $config['d365Config']['environmentUrl'] ?? '-' }}</code></div><div><strong>Interval Sync:</strong> {{ $config['d365Config']['syncIntervalMinutes'] ?? 15 }} menit {{ ($config['d365Config']['autoSync'] ?? false) ? '(otomatis aktif)' : '(manual)' }}</div><div><strong>Sinkronisasi Terakhir:</strong> {{ $config['system']['lastSyncD365'] ?? '-' }}</div></div><a class="btn btn-outline" href="{{ route('d365.data.index') }}">📋 Lihat Tabel Staging</a></div><div class="card"><div class="card-title">Google Sheets Weighbridge Connector <span class="sync-badge">Data Lokal</span></div><p>Membaca data penimbangan dan mengonversi NETTO menjadi Metric Ton.</p><div class="integration-details"><div><strong>Spreadsheet ID:</strong> <code>{{ $config['sheetsConfig']['spreadsheetId'] ?? '-' }}</code></div><div><strong>Sheet Tab:</strong> <code>{{ $config['sheetsConfig']['sheetName'] ?? '-' }}</code></div><div><strong>Formula MT:</strong> <code>NETTO / 1000</code></div><div><strong>Sinkronisasi Terakhir:</strong> {{ $config['system']['lastSyncSheets'] ?? '-' }}</div></div></div></div>
+        @if ($canImportGl)<div class="table-card" id="d365-sync"><div class="table-heading">Sinkronisasi Data Entity D365</div><form id="d365-sync-form" action="{{ route('d365.sync') }}" method="post" class="upload-form">@csrf<input type="hidden" name="entity" value="all"><button class="btn btn-primary">🔄 Tarik Semua Entity</button></form><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Data Entity (Server)</th><th>Mode</th><th>Baris Staging</th><th>Status Sinkron Terakhir</th><th>Kursor</th><th></th></tr></thead><tbody>@foreach ($d365Status as $entity)<tr><td><strong>{{ $entity['label'] }}</strong><br><code>{{ $entity['entity'] }}</code></td><td>{{ $entity['mode'] === 'incremental' ? 'Incremental' : 'Snapshot' }}</td><td class="num">{{ number_format($entity['staging_count'] ?? 0, 0, ',', '.') }}</td><td>@if ($entity['last']){{ $entity['last']->status === 'success' ? '✅' : ($entity['last']->status === 'failed' ? '❌' : '⏳') }} {{ $entity['last']->status }}<br><small>{{ $entity['last']->updated_at }} — {{ $entity['last']->fetched }} baris</small>@if ($entity['last']->message)<br><small style="color:#b3261e">{{ $entity['last']->message }}</small>@endif@else<span>Belum pernah sync</span>@endif</td><td><code>{{ $entity['last']->max_source_key ?? '-' }}</code></td><td><form action="{{ route('d365.sync') }}" method="post">@csrf<input type="hidden" name="entity" value="{{ $entity['key'] }}"><button class="btn btn-outline">Tarik</button></form></td></tr>@endforeach</tbody></table></div><small>Master data (vendor, customer, PO, invoice, inventory) ditarik mode snapshot karena environment sandbox belum menyimpan datanya; tabel tetap terisi otomatis begitu data tersedia.</small></div>@endif
         @if ($canImportGl)<div class="table-card" id="import-gl"><div class="table-heading">Impor Data General Ledger ke MySQL</div><form action="{{ route('gl.import') }}" method="post" enctype="multipart/form-data" class="upload-form">@csrf<input type="file" name="gl_file" accept=".xlsx,.xls,.csv,.tsv,.txt" required><button class="btn btn-primary">📤 Impor & Hitung Ulang</button></form><small>Format yang didukung: Excel, CSV, TSV, TXT. Data lama akan digantikan oleh file impor.</small></div>@endif
         <div class="table-card"><div class="table-heading">15 Tiket Timbangan Terbaru</div><div class="table-responsive"><table class="table-accounting"><thead><tr class="th-general"><th>Tgl & Jam</th><th>Produk</th><th>No Polisi</th><th>Sopir</th><th>Jembatan</th><th>BRUTO (Kg)</th><th>TARA (Kg)</th><th>NETTO (Kg)</th><th>NETTO (MT)</th><th>Operator</th></tr></thead><tbody>@foreach ($productionSummary['recentTickets'] as $ticket)<tr><td>{{ $ticket['Tgl Keluar'] }} {{ $ticket['Jam Keluar'] }}</td><td><strong>{{ $ticket['Product'] }}</strong></td><td>{{ $ticket['No Pol'] }}</td><td>{{ $ticket['Sopir'] }}</td><td>{{ $ticket['WEIGHBRIDGE'] }}</td><td class="num">{{ number_format($ticket['BRUTO'], 0, ',', '.') }}</td><td class="num">{{ number_format($ticket['TARA'], 0, ',', '.') }}</td><td class="num"><strong>{{ number_format($ticket['NETTO'], 0, ',', '.') }}</strong></td><td class="num"><strong>{{ $mt($ticket['NETTO'] / 1000) }}</strong></td><td>{{ $ticket['Operator'] }}</td></tr>@endforeach</tbody></table></div></div>
     </section>
@@ -99,7 +100,7 @@
      </section>
 
     <section class="tab-pane {{ $activeTab === 'matrix' ? 'active' : '' }}">
-        <div class="section-header"><div class="section-title"><h2>Report Cost: Matriks Valuation to & Costing to</h2><p>Nilai dalam Ribuan IDR</p></div><div class="section-actions"><a class="btn btn-primary" href="{{ route('matrix.export', ['period_year' => $period['year'], 'period_month' => $period['month'], 'period_view' => $period['view']]) }}">📥 Export Excel/CSV</a></div></div>
+        <div class="section-header"><div class="section-title"><h2>Report Cost: Matriks Valuation to & Costing to</h2><p>Nilai dalam Ribuan IDR</p></div><div class="section-actions"><a class="btn btn-outline" href="{{ route('d365.data.main_account_summary', ['date_from' => $period['start'], 'date_to' => $period['end']]) }}">∑ Cek Sum Main Account</a><a class="btn btn-primary" href="{{ route('matrix.export', ['period_year' => $period['year'], 'period_month' => $period['month'], 'period_view' => $period['view']]) }}">📥 Export Excel/CSV</a></div></div>
         <form class="section-actions matrix-filters" method="get" action="{{ route('dashboard') }}"><input type="hidden" name="tab" value="matrix"><input class="input-search" name="search" value="{{ $search }}" placeholder="🔍 Cari Kode / Nama Akun..."><label><input type="checkbox" name="parents_only" value="1" {{ $parentsOnly ? 'checked' : '' }}> Hanya Akun Induk</label><label><input type="checkbox" name="hide_zero" value="1" {{ $hideZero ? 'checked' : '' }}> Sembunyikan Saldo 0</label><button class="btn btn-outline">Terapkan Filter</button></form>
         <div class="table-card"><div class="table-responsive"><table class="table-accounting">
             <thead><tr><th rowspan="2" class="th-general">AccountCode</th><th rowspan="2" class="th-general">AccountName</th><th rowspan="2" class="th-general">Cek</th><th rowspan="2" class="th-general">ALL Cost</th><th colspan="4" class="th-val-group col-header-group">Valuation to (Stok Persediaan)</th><th colspan="6" class="th-cost-group col-header-group">Costing to (Beban Periode)</th></tr><tr>@foreach (['Mining','Coal Hauling','Washing Plant','BP PORT'] as $label)<th class="th-val-sub">{{ $label }}</th>@endforeach @foreach (['Mining','Coal Hauling','Washing Plant','BP PORT','GA','Selling Expense'] as $label)<th class="th-cost-sub">{{ $label }}</th>@endforeach</tr></thead>
@@ -112,6 +113,59 @@
         </table></div></div>
     </section>
 </main>
+<script>
+(() => {
+    const form = document.getElementById('d365-sync-form');
+    const panel = document.getElementById('d365-live-progress');
+    const body = document.getElementById('d365-progress-body');
+    const note = document.getElementById('d365-progress-note');
+    if (!form || !panel || !body) return;
+    const progressUrl = @json(route('d365.progress'));
+    const syncUrl = @json(route('d365.sync'));
+    const stagingMarchUrl = @json(route('d365.data.staging', ['date_from' => '2026-03-01', 'date_to' => '2026-03-31']));
+    const csrf = form.querySelector('input[name="_token"]').value;
+    let timer = null;
+    const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
+    const refresh = async () => {
+        const response = await fetch(progressUrl, {headers: {'Accept': 'application/json'}});
+        if (!response.ok) return;
+        const payload = await response.json();
+        const rows = Array.isArray(payload) ? payload : (payload.rows || []);
+        const queued = Number(Array.isArray(payload) ? 0 : (payload.queued || 0));
+        body.innerHTML = rows.map((row) => {
+            const percent = Math.max(0, Math.min(100, Number(row.progress || 0)));
+            const status = row.status === 'success' ? '✅ Selesai' : (row.status === 'failed' ? '❌ Gagal' : (row.status === 'running' ? '⏳ Berjalan' : 'Menunggu'));
+            const total = row.total === null ? '' : ` / ${Number(row.total).toLocaleString('id-ID')}`;
+            return `<tr><td><code>${esc(row.key)}</code></td><td>${status}</td><td><div class="bar-track"><div class="bar-fill" style="width:${percent}%"></div></div><small>${percent}%</small></td><td>${Number(row.fetched).toLocaleString('id-ID')}${total}</td></tr>`;
+        }).join('');
+        const running = rows.some((row) => row.status === 'running');
+        const active = queued > 0 || running;
+        if (active) panel.hidden = false;
+        note.innerHTML = queued > 0 && !running
+            ? 'Sync sudah masuk antrean. Menunggu queue worker…'
+            : (running ? 'Sinkronisasi sedang berjalan…' : `Progress terakhir diperbarui. <a href="${stagingMarchUrl}">Buka staging periode Maret 2026</a>`);
+        if (!active && timer) { clearInterval(timer); timer = null; }
+        return active;
+    };
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        formData.set('date_from', '2026-03-01');
+        formData.set('date_to', '2026-04-01');
+        panel.hidden = false;
+        note.textContent = 'Menempatkan sync ke antrean…';
+        const response = await fetch(syncUrl, {method: 'POST', headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': csrf}, body: formData});
+        if (!response.ok) { note.textContent = 'Gagal memasukkan sync ke antrean.'; return; }
+        await refresh();
+        if (!timer) timer = setInterval(refresh, 2000);
+    });
+
+    // Pulihkan polling jika halaman dibuka kembali saat queue masih bekerja.
+    refresh().then((active) => {
+        if (active && !timer) timer = setInterval(refresh, 2000);
+    });
+})();
+</script>
 <footer class="app-footer"><strong>PT Coal Mining & Resources</strong> • Sistem Dashboard Akuntansi & Biaya Produksi Batubara <span>Hosting Lokal • PHP Laravel & MySQL</span></footer>
 </body>
 </html>

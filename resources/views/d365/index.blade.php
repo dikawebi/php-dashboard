@@ -57,6 +57,8 @@
             <p style="color:var(--text-muted);margin:0">Hasil tarikan OData per entity. Klik entity untuk browse isi tabelnya.</p>
         </div>
         <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+            <a class="btn btn-outline" href="{{ route('d365.data.staging') }}">📋 Staging Format CSV</a>
+            <a class="btn btn-outline" href="{{ route('d365.data.main_account_summary') }}">∑ Cek Sum Main Account</a>
             @if (in_array(auth()->user()->role, ['administrator', 'accountant'], true))
                 <form action="{{ route('d365.sync') }}" method="post">
                     @csrf<input type="hidden" name="entity" value="all">

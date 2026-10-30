@@ -60,7 +60,7 @@ class DashboardController extends Controller
             $range = ['view' => 'all', 'year' => $year, 'month' => $month, 'start' => null, 'end' => null];
         }
 
-        return ['view' => $view, 'year' => $year, 'month' => $month, 'label' => $label, 'range' => $range, 'meta' => ['view' => $view, 'year' => $year, 'month' => $month, 'label' => $label]];
+        return ['view' => $view, 'year' => $year, 'month' => $month, 'label' => $label, 'range' => $range, 'meta' => ['view' => $view, 'year' => $year, 'month' => $month, 'label' => $label, 'start' => $range['start'], 'end' => $range['end']]];
     }
 
     public function saveInventory(Request $request): RedirectResponse
